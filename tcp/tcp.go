@@ -19,6 +19,16 @@ type Proxy struct {
 	rule config.TCPRule
 }
 
+// dirStats holds per-direction counters for a single proxied connection.
+type dirStats struct {
+	bytes         int64
+	chunks        int64
+	drops         int64
+	writes        int64
+	throttleSleep time.Duration
+	latencySleep  time.Duration
+}
+
 // NewProxy creates a new TCP proxy for the given rule.
 func NewProxy(rule config.TCPRule) *Proxy {
 	return &Proxy{rule: rule}
@@ -70,20 +80,26 @@ func (p *Proxy) Start(stop <-chan struct{}) error {
 
 func (p *Proxy) handleConn(client net.Conn) {
 	faults := p.rule.Faults
+	clientAddr := client.RemoteAddr().String()
+	start := time.Now()
 
 	if faults.RefuseConnections {
 		// Immediately close connection to simulate refusal
+		log.Printf("[DB] Refusing connection from %s (rule=%s -> %s)", clientAddr, p.rule.Listen, p.rule.Upstream)
 		_ = client.Close()
 		return
 	}
 
 	// Optional initial latency per-connection
 	if faults.LatencyMs > 0 {
-		time.Sleep(time.Duration(faults.LatencyMs) * time.Millisecond)
+		d := time.Duration(faults.LatencyMs) * time.Millisecond
+		time.Sleep(d)
+		log.Printf("[DB] Applied initial latency %s for %s", d, clientAddr)
 	}
 
 	// Randomly reset after accept
 	if faults.ResetProbability > 0 && rng.Float64() < faults.ResetProbability {
+		log.Printf("[DB] Resetting connection immediately after accept for %s (p=%.2f)", clientAddr, faults.ResetProbability)
 		_ = client.Close()
 		return
 	}
@@ -94,28 +110,40 @@ func (p *Proxy) handleConn(client net.Conn) {
 		_ = client.Close()
 		return
 	}
+	log.Printf("[DB] %s connected -> upstream %s", clientAddr, p.rule.Upstream)
 
 	// Bi-directional piping with optional throttling/drops
 	var wg sync.WaitGroup
 	wg.Add(2)
 
+	// Per-direction stats
+	upStats := &dirStats{}   // client -> upstream
+	downStats := &dirStats{} // upstream -> client
+
 	go func() {
 		defer wg.Done()
-		copyWithFaults(upstream, client, faults)
+		copyWithFaults(upstream, client, faults, "c->u", upStats)
 	}()
 
 	go func() {
 		defer wg.Done()
-		copyWithFaults(client, upstream, faults)
+		copyWithFaults(client, upstream, faults, "u->c", downStats)
 	}()
 
 	wg.Wait()
 	_ = client.Close()
 	_ = upstream.Close()
+
+	dur := time.Since(start)
+	log.Printf("[DB] Conn %s closed after %s | c->u bytes=%d chunks=%d drops=%d slept(lat=%s,thr=%s) | u->c bytes=%d chunks=%d drops=%d slept(lat=%s,thr=%s)",
+		clientAddr, dur,
+		upStats.bytes, upStats.chunks, upStats.drops, upStats.latencySleep, upStats.throttleSleep,
+		downStats.bytes, downStats.chunks, downStats.drops, downStats.latencySleep, downStats.throttleSleep,
+	)
 }
 
 // copyWithFaults copies data from src to dst applying drop and bandwidth throttling.
-func copyWithFaults(dst net.Conn, src net.Conn, f config.TCPFaults) {
+func copyWithFaults(dst net.Conn, src net.Conn, f config.TCPFaults, dir string, s *dirStats) {
 	// Simple chunked copy
 	bufSize := 32 * 1024
 	buf := make([]byte, bufSize)
@@ -129,14 +157,19 @@ func copyWithFaults(dst net.Conn, src net.Conn, f config.TCPFaults) {
 	for {
 		// Apply per-chunk latency if configured (approximate)
 		if f.LatencyMs > 0 {
-			time.Sleep(time.Duration(f.LatencyMs) * time.Millisecond)
+			d := time.Duration(f.LatencyMs) * time.Millisecond
+			time.Sleep(d)
+			s.latencySleep += d
 		}
 
 		n, readErr := src.Read(buf)
 		if n > 0 {
+			s.chunks++
 			// Randomly drop this chunk
 			if f.DropProbability > 0 && rng.Float64() < f.DropProbability {
 				// drop silently
+				s.drops++
+				log.Printf("[DB] drop dir=%s size=%d", dir, n)
 			} else {
 				// Bandwidth throttling: ensure we don't exceed bwPerSec
 				if bwPerSec > 0 {
@@ -150,6 +183,7 @@ func copyWithFaults(dst net.Conn, src net.Conn, f config.TCPFaults) {
 						sleepDur := time.Second - now.Sub(windowStart)
 						if sleepDur > 0 {
 							time.Sleep(sleepDur)
+							s.throttleSleep += sleepDur
 							windowStart = time.Now()
 							sentThisWindow = 0
 						}
@@ -158,6 +192,8 @@ func copyWithFaults(dst net.Conn, src net.Conn, f config.TCPFaults) {
 
 				wn, writeErr := dst.Write(buf[:n])
 				sentThisWindow += int64(wn)
+				s.writes++
+				s.bytes += int64(wn)
 				if writeErr != nil {
 					return
 				}
