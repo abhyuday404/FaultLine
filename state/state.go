@@ -3,15 +3,9 @@ package state
 import (
 	"faultline/config"
 	"sync"
-
-	"github.com/google/uuid"
 )
 
-// Failure matches the config.Failure struct but is used for in-memory state.
-type Failure config.Failure
-
-// Rule is the in-memory representation of a failure rule.
-// It includes an ID and an enabled/disabled state.
+// Rule defines the structure for a failure rule, including JSON tags for API communication.
 type Rule struct {
 	ID      string  `json:"id"`
 	Target  string  `json:"target"`
@@ -19,69 +13,82 @@ type Rule struct {
 	Enabled bool    `json:"enabled"`
 }
 
-// RuleState holds the current list of rules and a mutex for safe concurrent access.
+// Failure defines the specifics of a failure, using camelCase JSON tags.
+type Failure struct {
+	Type      string `json:"type"`
+	LatencyMs int    `json:"latencyMs,omitempty"`
+	ErrorCode int    `json:"errorCode,omitempty"`
+}
+
+// RuleState holds the current set of rules in a thread-safe manner.
 type RuleState struct {
-	sync.RWMutex
-	rules []Rule
+	mu    sync.RWMutex
+	rules map[string]Rule
 }
 
 // NewRuleState creates a new, thread-safe rule store.
+// initialRules can be nil.
 func NewRuleState(initialRules []config.Rule) *RuleState {
 	rs := &RuleState{
-		rules: make([]Rule, 0),
+		rules: make(map[string]Rule),
 	}
-	// Convert initial rules from config format to state format
-	for _, r := range initialRules {
-		rs.rules = append(rs.rules, Rule{
-			ID:      uuid.New().String(),
-			Target:  r.Target,
-			Failure: Failure(r.Failure),
-			Enabled: true, // Rules from YAML are enabled by default
-		})
-	}
+	// This part is for potential future use where we might load initial rules from a file.
+	// For now, it starts empty.
 	return rs
 }
 
-// GetRules returns a copy of the current rules for safe reading.
+// GetRules returns a slice of all current rules.
 func (rs *RuleState) GetRules() []Rule {
-	rs.RLock()
-	defer rs.RUnlock()
-	// Return a copy to prevent modification of the underlying slice
-	rulesCopy := make([]Rule, len(rs.rules))
-	copy(rulesCopy, rs.rules)
-	return rulesCopy
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	rules := make([]Rule, 0, len(rs.rules))
+	for _, rule := range rs.rules {
+		rules = append(rules, rule)
+	}
+	return rules
 }
 
-// AddRule adds a new rule to the state.
+// AddRule adds a new rule to the store.
 func (rs *RuleState) AddRule(rule Rule) {
-	rs.Lock()
-	defer rs.Unlock()
-	rs.rules = append(rs.rules, rule)
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	rs.rules[rule.ID] = rule
 }
 
-// UpdateRule updates an existing rule by its ID.
-func (rs *RuleState) UpdateRule(updatedRule Rule) bool {
-	rs.Lock()
-	defer rs.Unlock()
-	for i, r := range rs.rules {
-		if r.ID == updatedRule.ID {
-			rs.rules[i] = updatedRule
-			return true
-		}
+// UpdateRule updates an existing rule. Returns false if the rule is not found.
+func (rs *RuleState) UpdateRule(rule Rule) bool {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	if _, ok := rs.rules[rule.ID]; !ok {
+		return false
 	}
-	return false // Not found
+	rs.rules[rule.ID] = rule
+	return true
 }
 
-// DeleteRule removes a rule by its ID.
+// DeleteRule removes a rule by its ID. Returns false if the rule is not found.
 func (rs *RuleState) DeleteRule(id string) bool {
-	rs.Lock()
-	defer rs.Unlock()
-	for i, r := range rs.rules {
-		if r.ID == id {
-			// Remove the element by slicing
-			rs.rules = append(rs.rules[:i], rs.rules[i+1:]...)
-			return true
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	if _, ok := rs.rules[id]; !ok {
+		return false
+	}
+	delete(rs.rules, id)
+	return true
+}
+
+// FindRuleForTarget checks if any enabled rule matches the given target URL.
+func (rs *RuleState) FindRuleForTarget(targetURL string) (*Rule, bool) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	for _, rule := range rs.rules {
+		// A rule matches if it's enabled and its target is a prefix of the request URL.
+		if rule.Enabled && len(rule.Target) > 0 && len(targetURL) >= len(rule.Target) && targetURL[:len(rule.Target)] == rule.Target {
+			// Return a copy of the rule to prevent data races.
+			r := rule
+			return &r, true
 		}
 	}
-	return false // Not found
+	return nil, false
 }

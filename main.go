@@ -1,10 +1,26 @@
 package main
 
+// TROUBLESHOOTING: If you see an "undefined: api.RegisterHandlers" error,
+// please check your go.mod file. The first line MUST be exactly:
+// module faultline
+//
+// If it's different, please change it. After saving the change, run this
+// command in your terminal:
+// go mod tidy
+//
+// This will resolve the error by aligning your project's module name with
+// the import paths used in the code.
+
 import (
+	"context"
+	"faultline/api"
+	"faultline/proxy"
+	"faultline/state"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+<<<<<<< HEAD
 	"sync"
 
 	"faultline/api"
@@ -12,6 +28,11 @@ import (
 	"faultline/proxy"
 	"faultline/state"
 	"faultline/tcp"
+=======
+	"os/signal"
+	"syscall"
+	"time"
+>>>>>>> 86322c8fdb0be43f8fb1728e7d1629ab7483d810
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -20,12 +41,12 @@ import (
 )
 
 func main() {
-	var configFile string
-	var port int
+	var proxyPort int
 	var apiPort int
 
 	var rootCmd = &cobra.Command{
 		Use:   "faultline",
+<<<<<<< HEAD
 		Short: "FaultLine: all-in-one failure testing for APIs and Databases",
 		Long: `FaultLine helps you build resilient apps by simulating real-world failures across:
  - API (HTTP) via a reverse proxy with latency/errors/flaky responses
@@ -37,69 +58,20 @@ Configure scenarios in a YAML file and run targeted commands to test each surfac
 	var startCmd = &cobra.Command{
 		Use:   "start-api",
 		Short: "Start API (HTTP) fault-injection proxy",
+=======
+		Short: "A tool for injecting failure scenarios into your dev environment.",
+	}
+
+	var startCmd = &cobra.Command{
+		Use:   "start",
+		Short: "Starts the FaultLine proxy and control API servers",
+>>>>>>> 86322c8fdb0be43f8fb1728e7d1629ab7483d810
 		Run: func(cmd *cobra.Command, args []string) {
-			// 1. Load initial configuration from YAML
-			initialConfig, err := config.LoadConfig(configFile)
-			if err != nil {
-				// We don't fail if the file doesn't exist, just start with no rules.
-				log.Printf("Warning: No config file found at %s. Starting with zero rules.", configFile)
-				initialConfig = &config.Config{}
-			}
-
-			// 2. Initialize the shared state for rules
-			ruleState := state.NewRuleState(initialConfig.Rules)
-			log.Printf("Loaded %d initial failure rules from %s", len(initialConfig.Rules), configFile)
-
-			var wg sync.WaitGroup
-			wg.Add(2)
-
-			// 3. Start the Proxy Server in a separate goroutine
-			go func() {
-				defer wg.Done()
-				p := proxy.NewProxy(ruleState)
-				proxyRouter := mux.NewRouter()
-				// The proxy handles all paths that are not for the API
-				proxyRouter.PathPrefix("/").Handler(http.HandlerFunc(p.HandleRequest))
-
-				log.Printf("-> FaultLine Proxy Server listening on port %d...", port)
-				if err := http.ListenAndServe(fmt.Sprintf(":%d", port), proxyRouter); err != nil {
-					log.Fatalf("Failed to start proxy server: %v", err)
-				}
-			}()
-
-			// 4. Start the Control API Server in a separate goroutine
-			go func() {
-				defer wg.Done()
-				apiHandler := api.NewApiHandler(ruleState)
-				apiRouter := mux.NewRouter()
-
-				// API routes
-				apiRouter.HandleFunc("/api/rules", apiHandler.GetRules).Methods("GET")
-				apiRouter.HandleFunc("/api/rules", apiHandler.AddRule).Methods("POST")
-				apiRouter.HandleFunc("/api/rules/{id}", apiHandler.UpdateRule).Methods("PUT")
-				apiRouter.HandleFunc("/api/rules/{id}", apiHandler.DeleteRule).Methods("DELETE")
-
-				// CORS configuration
-				c := cors.New(cors.Options{
-					AllowedOrigins: []string{"*"}, // Allow all for development
-					AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-					AllowedHeaders: []string{"Content-Type"},
-				})
-				handler := c.Handler(apiRouter)
-
-				log.Printf("-> FaultLine Control API listening on port %d...", apiPort)
-				if err := http.ListenAndServe(fmt.Sprintf(":%d", apiPort), handler); err != nil {
-					log.Fatalf("Failed to start API server: %v", err)
-				}
-			}()
-
-			// Wait for both servers to finish
-			wg.Wait()
+			runServers(apiPort, proxyPort)
 		},
 	}
 
-	startCmd.Flags().StringVarP(&configFile, "config", "c", "faultline.yaml", "Path to the initial configuration file")
-	startCmd.Flags().IntVarP(&port, "port", "p", 8080, "Port for the failure proxy server")
+	startCmd.Flags().IntVarP(&proxyPort, "proxy-port", "p", 8080, "Port for the failure injection proxy")
 	startCmd.Flags().IntVarP(&apiPort, "api-port", "a", 8081, "Port for the control panel API")
 
 	rootCmd.AddCommand(startCmd)
@@ -268,4 +240,68 @@ Configure scenarios in a YAML file and run targeted commands to test each surfac
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+// runServers sets up and starts the API and proxy servers.
+func runServers(apiPort, proxyPort int) {
+	ruleState := state.NewRuleState(nil)
+
+	// --- Setup Control API Server ---
+	apiRouter := mux.NewRouter()
+	api.RegisterHandlers(apiRouter, ruleState)
+
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:5174"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type"},
+		AllowCredentials: true,
+	})
+	apiHandler := c.Handler(apiRouter)
+
+	apiServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", apiPort),
+		Handler: apiHandler,
+	}
+
+	// --- Setup Proxy Server ---
+	p := proxy.NewProxy(ruleState)
+	proxyServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", proxyPort),
+		Handler: http.HandlerFunc(p.HandleRequest),
+	}
+
+	// --- Graceful Shutdown Setup ---
+	stopChan := make(chan os.Signal, 1)
+	signal.Notify(stopChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// --- Start Servers ---
+	go func() {
+		log.Printf("✅ Control API listening on http://localhost:%d", apiPort)
+		if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("API server failed: %v", err)
+		}
+	}()
+
+	go func() {
+		log.Printf("✅ FaultLine Proxy listening on http://localhost:%d", proxyPort)
+		if err := proxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Proxy server failed: %v", err)
+		}
+	}()
+
+	// Block until a signal is received
+	<-stopChan
+	log.Println("Shutting down servers...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := apiServer.Shutdown(ctx); err != nil {
+		log.Printf("API server shutdown error: %v", err)
+	}
+	if err := proxyServer.Shutdown(ctx); err != nil {
+		log.Printf("Proxy server shutdown error: %v", err)
+	}
+
+	log.Println("Servers gracefully stopped.")
 }
