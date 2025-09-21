@@ -160,8 +160,7 @@ Configure scenarios in a YAML file and run targeted commands to test each surfac
 				fmt.Scanln(&faults.ResetProbability)
 				fmt.Print("  bandwidth_kbps (int, 0 for none): ")
 				fmt.Scanln(&faults.BandwidthKbps)
-				var refuse string
-				refuse = ask("  refuse_connections? (y/n): ")
+				refuse := ask("  refuse_connections? (y/n): ")
 				if refuse == "y" || refuse == "Y" {
 					faults.RefuseConnections = true
 				}
