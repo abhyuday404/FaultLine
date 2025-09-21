@@ -1,0 +1,12 @@
+rules:
+  # Rule 1: Add a 2-second delay to all calls to our mock user service.
+  - target: "http://localhost:3000/users"
+    failure:
+      type: "latency"
+      latency_ms: 2000
+
+  # Rule 2: Make the mock products service fail with a 503 error.
+  - target: "http://localhost:3000/products"
+    failure:
+      type: "error"
+      error_code: 503
