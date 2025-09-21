@@ -3,7 +3,6 @@ package proxy
 import (
 	"faultline/state"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -11,66 +10,62 @@ import (
 	"time"
 )
 
-// Proxy holds the shared state of rules.
+// Proxy holds a reference to the shared rule state.
 type Proxy struct {
 	ruleState *state.RuleState
 }
 
 // NewProxy creates and initializes the proxy.
-func NewProxy(state *state.RuleState) *Proxy {
+func NewProxy(rs *state.RuleState) *Proxy {
 	return &Proxy{
-		ruleState: state,
+		ruleState: rs,
 	}
 }
 
 // HandleRequest is the core logic for the proxy.
 func (p *Proxy) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	targetURLStr := strings.TrimPrefix(r.URL.Path, "/")
+	// Handle CORS preflight requests (OPTIONS) directly.
+	w.Header().Set("Access-Control-Allow-Origin", "*") // Allow any origin
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	targetURLString := strings.TrimPrefix(r.URL.Path, "/")
 	if r.URL.RawQuery != "" {
-		targetURLStr += "?" + r.URL.RawQuery
+		targetURLString += "?" + r.URL.RawQuery
 	}
 
-	// Get a read-only copy of the current rules
-	rules := p.ruleState.GetRules()
-
-	for _, rule := range rules {
-		// Only apply active rules
-		if !rule.Enabled {
-			continue
-		}
-
-		if strings.HasPrefix(targetURLStr, rule.Target) {
-			log.Printf("[PROXY MATCH] Target: %s -> Injecting Failure: %s", rule.Target, rule.Failure.Type)
-			p.injectFailure(w, r, &rule)
-			return
-		}
+	// Check if any rule matches the requested URL
+	if rule, ok := p.ruleState.FindRuleForTarget(targetURLString); ok {
+		log.Printf("[RULE MATCH] Target: %s -> Injecting Failure: %s", rule.Target, rule.Failure.Type)
+		p.injectFailure(w, r, rule)
+		return
 	}
 
-	p.serveReverseProxy(targetURLStr, w, r)
+	// If no rule matches, just proxy the request normally
+	p.serveReverseProxy(targetURLString, w, r)
 }
 
 // injectFailure applies the failure logic defined in a rule.
 func (p *Proxy) injectFailure(w http.ResponseWriter, r *http.Request, rule *state.Rule) {
-	targetURL := strings.TrimPrefix(r.URL.Path, "/")
+	targetURLString := strings.TrimPrefix(r.URL.Path, "/")
 
 	switch rule.Failure.Type {
 	case "latency":
 		time.Sleep(time.Duration(rule.Failure.LatencyMs) * time.Millisecond)
-		p.serveReverseProxy(targetURL, w, r)
+		p.serveReverseProxy(targetURLString, w, r)
+
 	case "error":
 		w.WriteHeader(rule.Failure.ErrorCode)
 		w.Write([]byte("FaultLine: Injected Error Response"))
-	case "flaky":
-		if rand.Float64() < rule.Failure.Probability {
-			log.Printf("[FLAKY] Failure triggered for %s", targetURL)
-			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte("FaultLine: Injected Flaky Error"))
-		} else {
-			log.Printf("[FLAKY] Passed through for %s", targetURL)
-			p.serveReverseProxy(targetURL, w, r)
-		}
+
 	default:
-		p.serveReverseProxy(targetURL, w, r)
+		log.Printf("Unknown failure type: %s. Proxying normally.", rule.Failure.Type)
+		p.serveReverseProxy(targetURLString, w, r)
 	}
 }
 
@@ -78,15 +73,40 @@ func (p *Proxy) injectFailure(w http.ResponseWriter, r *http.Request, rule *stat
 func (p *Proxy) serveReverseProxy(target string, w http.ResponseWriter, r *http.Request) {
 	remote, err := url.Parse(target)
 	if err != nil {
+		log.Printf("Error parsing target URL: %v", err)
 		http.Error(w, "Invalid target URL", http.StatusBadRequest)
 		return
 	}
-	proxy := httputil.NewSingleHostReverseProxy(remote)
-	r.URL.Host = remote.Host
-	r.URL.Scheme = remote.Scheme
-	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
-	r.Host = remote.Host
 
-	log.Printf("[PROXY] Forwarding request to %s", target)
+	proxy := httputil.NewSingleHostReverseProxy(remote)
+
+	// *** THE DEFINITIVE FIX IS HERE ***
+	// The original request to our proxy is, for example, GET /https://jsonplaceholder.typicode.com/users
+	// The 'Director' must correctly rewrite this to be a valid request to the final server.
+	originalPath := r.URL.Path
+
+	director := func(req *http.Request) {
+		// Set the scheme and host to the target's
+		req.URL.Scheme = remote.Scheme
+		req.URL.Host = remote.Host
+
+		// The path sent to the final server should be the target's path, not the one
+		// that includes the full URL.
+		req.URL.Path = remote.Path
+
+		// Copy the query parameters.
+		req.URL.RawQuery = remote.RawQuery
+
+		// Set the host of the request to the target host.
+		req.Host = remote.Host
+
+		// Clean up the RequestURI to avoid conflicts.
+		req.RequestURI = ""
+
+		log.Printf("Rewriting request from [%s] to [%s%s]", originalPath, req.URL.Host, req.URL.Path)
+	}
+	proxy.Director = director
+
+	log.Printf("[PROXY] Forwarding request for %s", target)
 	proxy.ServeHTTP(w, r)
 }

@@ -19,6 +19,18 @@ func NewApiHandler(rs *state.RuleState) *ApiHandler {
 	return &ApiHandler{ruleState: rs}
 }
 
+// *** THIS IS THE MISSING FUNCTION ***
+// RegisterHandlers sets up the routing for the API endpoints.
+func RegisterHandlers(router *mux.Router, rs *state.RuleState) {
+	h := NewApiHandler(rs)
+
+	// Define the API routes and link them to the handler methods
+	router.HandleFunc("/api/rules", h.GetRules).Methods("GET")
+	router.HandleFunc("/api/rules", h.AddRule).Methods("POST")
+	router.HandleFunc("/api/rules/{id}", h.UpdateRule).Methods("PUT")
+	router.HandleFunc("/api/rules/{id}", h.DeleteRule).Methods("DELETE")
+}
+
 // GetRules returns the list of current failure rules as JSON.
 func (h *ApiHandler) GetRules(w http.ResponseWriter, r *http.Request) {
 	rules := h.ruleState.GetRules()
