@@ -84,6 +84,8 @@ const ApiCard = ({ title, description, endpoint }) => {
     try {
       // The URL is constructed to go through the proxy to a live internet API
       const response = await fetch(`http://localhost:8080/${endpoint}`);
+      console.log("Trying to fetch from:- ");
+      console.log(`http://localhost:8080/${endpoint}`);
       const timeTaken = Date.now() - startTime;
       
       if (!response.ok) {
