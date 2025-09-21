@@ -14,8 +14,10 @@ package main
 import (
 	"context"
 	"faultline/api"
+	"faultline/config"
 	"faultline/proxy"
 	"faultline/state"
+	"faultline/tcp"
 	"fmt"
 	"log"
 	"net/http"
@@ -32,6 +34,7 @@ import (
 func main() {
 	var proxyPort int
 	var apiPort int
+	var configFile string
 
 	var rootCmd = &cobra.Command{
 		Use:   "faultline",
@@ -50,6 +53,40 @@ func main() {
 	startCmd.Flags().IntVarP(&apiPort, "api-port", "a", 8081, "Port for the control panel API")
 
 	rootCmd.AddCommand(startCmd)
+
+	// start-db: run TCP fault-injection proxies based on config
+	var startDBCmd = &cobra.Command{
+		Use:   "start-db",
+		Short: "Start DB (TCP) fault-injection proxies from tcpRules",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.LoadConfig(configFile)
+			if err != nil {
+				return fmt.Errorf("load config: %w", err)
+			}
+			if len(cfg.TCPRules) == 0 {
+				log.Println("[DB] No tcpRules found in config. Nothing to start.")
+				return nil
+			}
+			stop := make(chan struct{})
+			for _, r := range cfg.TCPRules {
+				rp := tcp.NewProxy(r)
+				go func(rule config.TCPRule) {
+					if err := rp.Start(stop); err != nil {
+						log.Printf("[DB] Proxy %s -> %s exited: %v", rule.Listen, rule.Upstream, err)
+					}
+				}(r)
+			}
+			log.Printf("[DB] Started %d DB network proxies (latency/drops/throttle/refuse). Press Ctrl+C to stop.", len(cfg.TCPRules))
+			// Wait on signal
+			sig := make(chan os.Signal, 1)
+			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+			<-sig
+			close(stop)
+			return nil
+		},
+	}
+	startDBCmd.Flags().StringVarP(&configFile, "config", "c", "faultline.yaml", "Path to the configuration file")
+	rootCmd.AddCommand(startDBCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
