@@ -8,7 +8,8 @@ import (
 
 // Config is the main configuration structure.
 type Config struct {
-	Rules []Rule `yaml:"rules"`
+	Rules    []Rule    `yaml:"rules"`
+	TCPRules []TCPRule `yaml:"tcpRules"`
 }
 
 // Rule defines a single failure injection rule.
@@ -23,6 +24,22 @@ type Failure struct {
 	LatencyMs   int     `yaml:"latency_ms,omitempty"`
 	ErrorCode   int     `yaml:"error_code,omitempty"`
 	Probability float64 `yaml:"probability,omitempty"` // For "flaky" type
+}
+
+// TCPRule defines a TCP proxy with faults to apply between a local listener and an upstream address.
+type TCPRule struct {
+	Listen   string    `yaml:"listen"`   // e.g., 127.0.0.1:55432
+	Upstream string    `yaml:"upstream"` // e.g., db.internal:5432
+	Faults   TCPFaults `yaml:"faults"`
+}
+
+// TCPFaults specify fault injection parameters for TCP traffic.
+type TCPFaults struct {
+	LatencyMs         int     `yaml:"latency_ms,omitempty"`         // Initial per-connection latency
+	ResetProbability  float64 `yaml:"reset_probability,omitempty"`  // Chance to abruptly reset a connection after accept
+	DropProbability   float64 `yaml:"drop_probability,omitempty"`   // Chance per-chunk to drop data
+	BandwidthKbps     int     `yaml:"bandwidth_kbps,omitempty"`     // Throttle writes to approx kbps
+	RefuseConnections bool    `yaml:"refuse_connections,omitempty"` // If true, refuse/close incoming connections immediately
 }
 
 // LoadConfig reads a YAML file and returns a Config struct.

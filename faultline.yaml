@@ -10,3 +10,11 @@ rules:
     failure:
       type: "error"
       error_code: 503
+
+# TCP rules for DB fault testing
+tcpRules:
+  # Simulate DB connectivity error: refuse all new connections on 127.0.0.1:55432
+  - listen: "127.0.0.1:55432"
+    upstream: "localhost:5432"
+    faults:
+      refuse_connections: true
