@@ -19,6 +19,8 @@ const styles = `
     font-family: var(--font-family);
     background-color: var(--bg-color);
     color: var(--text-color);
+    width: 100%;
+    justify-content: center;
     margin: 0;
     padding: 2rem;
   }
