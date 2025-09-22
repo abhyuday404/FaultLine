@@ -1,12 +1,12 @@
 [
   {
-    "id": "24316e4c-e23d-4769-8b7c-206edd4b8587",
-    "target": "https://jsonplaceholder.typicode.com/users",
+    "id": "1855ecb1-461e-4213-b946-581ef5fb9409",
+    "target": "https://api.thecatapi.com/v1/images/search",
     "failure": {
-      "type": "error",
-      "errorCode": 501
+      "type": "latency",
+      "latencyMs": 5000
     },
     "enabled": true,
-    "category": "database"
+    "category": "api"
   }
 ]

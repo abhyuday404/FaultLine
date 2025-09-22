@@ -131,7 +131,7 @@ function App() {
       (data) => setPosts(data.slice(0, 5)), 'posts')
     fetchDataWithLatency('https://zenquotes.io/api/random', 
       (data) => setQuote(data[0]), 'quote')
-    fetchDataWithLatency('https://uselessfacts.jsph.pl/random.json?language=en', setFact, 'fact')
+  fetchDataWithLatency(`https://uselessfacts.jsph.pl/random.json?language=en&_t=${Date.now()}`, setFact, 'fact', { cache: 'no-store' })
     fetchDataWithLatency('http://localhost:8081/api/rules', setFaultlineStatus, 'faultline')
     fetchDataWithLatency('https://api.thecatapi.com/v1/images/search', 
       (data) => setCatImage(data[0]), 'catImage')
@@ -157,7 +157,7 @@ function App() {
           (data) => setQuote(data[0]), 'quote')
         break
       case 'fact':
-        await fetchDataWithLatency('https://uselessfacts.jsph.pl/random.json?language=en', setFact, 'fact')
+        await fetchDataWithLatency(`https://uselessfacts.jsph.pl/random.json?language=en&_t=${Date.now()}`, setFact, 'fact', { cache: 'no-store' })
         break
       case 'faultline':
         await fetchDataWithLatency('http://localhost:8081/api/rules', setFaultlineStatus, 'faultline')
@@ -396,7 +396,7 @@ function App() {
             {/* User Profiles Card (from /users) */}
             <div className="data-card">
               <div className="card-header">
-                <h3>👤 User Profiles</h3>
+                <h3>Users</h3>
                 <button onClick={() => refreshData('userProfiles')} disabled={loading.userProfiles}>
                   {loading.userProfiles ? "Refreshing..." : "Refresh"}
                 </button>
@@ -429,7 +429,7 @@ function App() {
             {/* Orders Card (from /todos) */}
             <div className="data-card">
               <div className="card-header">
-                <h3>🛒 Recent Orders</h3>
+                <h3>ToDos</h3>
                 <button onClick={() => refreshData('orders')} disabled={loading.orders}>
                   {loading.orders ? "Refreshing..." : "Refresh"}
                 </button>
