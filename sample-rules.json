@@ -1,0 +1,29 @@
+[
+  {
+    "id": "sample-latency-rule",
+    "target": "https://jsonplaceholder.typicode.com/users",
+    "failure": {
+      "type": "latency",
+      "latencyMs": 2000
+    },
+    "enabled": true
+  },
+  {
+    "id": "sample-error-rule",
+    "target": "https://jsonplaceholder.typicode.com/posts",
+    "failure": {
+      "type": "error",
+      "errorCode": 500
+    },
+    "enabled": false
+  },
+  {
+    "id": "sample-timeout-rule",
+    "target": "https://jsonplaceholder.typicode.com/users",
+    "failure": {
+      "type": "timeout",
+      "latencyMs": 30000
+    },
+    "enabled": true
+  }
+]

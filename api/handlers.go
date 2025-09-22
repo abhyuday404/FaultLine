@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"faultline/cli"
 	"faultline/state"
 	"net/http"
 
@@ -9,20 +10,24 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// ApiHandler holds a reference to the shared rule state.
+// ApiHandler holds a reference to the shared rule state and persistence manager.
 type ApiHandler struct {
-	ruleState *state.RuleState
+	ruleState   *state.RuleState
+	ruleManager *cli.RuleManager
 }
 
 // NewApiHandler creates a new handler for the API.
-func NewApiHandler(rs *state.RuleState) *ApiHandler {
-	return &ApiHandler{ruleState: rs}
+func NewApiHandler(rm *cli.RuleManager) *ApiHandler {
+	return &ApiHandler{
+		ruleState:   rm.GetRuleState(),
+		ruleManager: rm,
+	}
 }
 
 // *** THIS IS THE MISSING FUNCTION ***
 // RegisterHandlers sets up the routing for the API endpoints.
-func RegisterHandlers(router *mux.Router, rs *state.RuleState) {
-	h := NewApiHandler(rs)
+func RegisterHandlers(router *mux.Router, rm *cli.RuleManager) {
+	h := NewApiHandler(rm)
 
 	// Define the API routes and link them to the handler methods
 	router.HandleFunc("/api/rules", h.GetRules).Methods("GET")
@@ -33,6 +38,12 @@ func RegisterHandlers(router *mux.Router, rs *state.RuleState) {
 
 // GetRules returns the list of current failure rules as JSON.
 func (h *ApiHandler) GetRules(w http.ResponseWriter, r *http.Request) {
+	// Check if rules file has been modified and reload if necessary (for CLI changes)
+	if err := h.ruleState.CheckAndReloadIfModified(); err != nil {
+		// Log error but continue with current state
+		// log.Printf("Warning: Failed to reload rules: %v", err)
+	}
+
 	rules := h.ruleState.GetRules()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(rules)
@@ -55,6 +66,7 @@ func (h *ApiHandler) AddRule(w http.ResponseWriter, r *http.Request) {
 		newRule.Category = "api"
 	}
 	h.ruleState.AddRule(newRule)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(newRule)
@@ -76,6 +88,7 @@ func (h *ApiHandler) UpdateRule(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Rule not found", http.StatusNotFound)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(updatedRule)
 }
@@ -89,5 +102,6 @@ func (h *ApiHandler) DeleteRule(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Rule not found", http.StatusNotFound)
 		return
 	}
+
 	w.WriteHeader(http.StatusNoContent)
 }

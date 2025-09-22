@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"faultline/cli"
 	"faultline/state"
 	"log"
 	"net/http"
@@ -10,20 +11,27 @@ import (
 	"time"
 )
 
-// Proxy holds a reference to the shared rule state.
+// Proxy holds a reference to the shared rule state and manager.
 type Proxy struct {
-	ruleState *state.RuleState
+	ruleState   *state.RuleState
+	ruleManager *cli.RuleManager
 }
 
 // NewProxy creates and initializes the proxy.
-func NewProxy(rs *state.RuleState) *Proxy {
+func NewProxy(rm *cli.RuleManager) *Proxy {
 	return &Proxy{
-		ruleState: rs,
+		ruleState:   rm.GetRuleState(),
+		ruleManager: rm,
 	}
 }
 
 // HandleRequest is the core logic for the proxy.
 func (p *Proxy) HandleRequest(w http.ResponseWriter, r *http.Request) {
+	// Check if rules file has been modified and reload if necessary (for CLI changes)
+	if err := p.ruleState.CheckAndReloadIfModified(); err != nil {
+		log.Printf("[WARNING] Failed to reload rules: %v", err)
+	}
+
 	// Handle CORS preflight requests (OPTIONS) directly. Only set CORS
 	// headers here for preflight responses. For proxied responses we use
 	// the reverse proxy's ModifyResponse to normalize headers, to avoid
