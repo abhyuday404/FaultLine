@@ -8,8 +8,17 @@ import (
 
 // Config is the main configuration structure.
 type Config struct {
-	Rules    []Rule    `yaml:"rules"`
-	TCPRules []TCPRule `yaml:"tcpRules"`
+	Rules    []Rule      `yaml:"rules"`
+	TCPRules []TCPRule   `yaml:"tcpRules"`
+	OpenAPI  OpenAPIConf `yaml:"openapi"`
+}
+
+// OpenAPIConf contains OpenAPI/Swagger discovery configuration
+type OpenAPIConf struct {
+	Enabled     bool     `yaml:"enabled"`
+	SpecFiles   []string `yaml:"specFiles"`
+	SearchPaths []string `yaml:"searchPaths"`
+	AutoCreate  bool     `yaml:"autoCreate"` // Automatically create rules from discovered endpoints
 }
 
 // Rule defines a single failure injection rule.

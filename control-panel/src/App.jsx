@@ -80,6 +80,11 @@ function App() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Code analysis state
+  const [codeEndpoints, setCodeEndpoints] = useState([]);
+  const [codeAnalysisLoading, setCodeAnalysisLoading] = useState(false);
+  const [codeAnalysisError, setCodeAnalysisError] = useState(null);
 
   const fetchRules = useCallback(async () => {
     try {
@@ -99,6 +104,50 @@ function App() {
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
+
+  // Analyze source code for actual endpoints
+  const analyzeCodeEndpoints = async (directory = './showcase-app') => {
+    setCodeAnalysisLoading(true);
+    setCodeAnalysisError(null);
+    try {
+      const response = await fetch(`${API_URL}/api/endpoints/analyze-code?directory=${encodeURIComponent(directory)}`);
+      if (!response.ok) throw new Error('Failed to analyze code endpoints');
+      const data = await response.json();
+      
+      setCodeEndpoints(data.endpoints || []);
+    } catch (err) {
+      setCodeAnalysisError(err.message);
+    } finally {
+      setCodeAnalysisLoading(false);
+    }
+  };
+
+  // Create rule from code endpoint
+  const createRuleFromCodeEndpoint = async (endpoint) => {
+    try {
+      const newRulePayload = {
+        target: endpoint.url,
+        category: 'api',
+        failure: {
+          type: 'latency',
+          latencyMs: 2000,
+        },
+      };
+
+      const response = await fetch(`${API_URL}/api/rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRulePayload),
+      });
+
+      if (!response.ok) throw new Error('Failed to create rule');
+      
+      fetchRules(); // Refresh rules list
+      alert('Rule created successfully!');
+    } catch (err) {
+      alert('Failed to create rule: ' + err.message);
+    }
+  };
 
   const handleDbInputChange = (e) => {
     const { name, value } = e.target;
@@ -270,6 +319,106 @@ function App() {
             </div>
             <button type="submit">Add DB Rule</button>
           </form>
+        </div>
+
+        <div className="card">
+          <h2>🧬 Source Code Analysis</h2>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
+            Analyze actual source code to discover API endpoints being used in your application.
+          </p>
+          
+          <div style={{ marginBottom: '1rem' }}>
+            <button 
+              onClick={() => analyzeCodeEndpoints('./showcase-app')}
+              disabled={codeAnalysisLoading}
+            >
+              {codeAnalysisLoading ? '🔄 Analyzing...' : '🔍 Analyze Showcase App'}
+            </button>
+          </div>
+
+          {codeAnalysisError && (
+            <div style={{ color: 'var(--red)', marginBottom: '1rem', padding: '0.5rem', background: 'rgba(255,0,0,0.1)', borderRadius: '4px' }}>
+              ❌ {codeAnalysisError}
+            </div>
+          )}
+
+          {codeEndpoints.length > 0 && (
+            <>
+              <h3 style={{ marginBottom: '1rem', color: 'var(--accent)' }}>
+                📋 Code Endpoints Found ({codeEndpoints.length})
+              </h3>
+              <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '4px' }}>
+                <table style={{ fontSize: '0.9rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--card-bg)', position: 'sticky', top: 0 }}>
+                      <th>Method</th>
+                      <th>URL</th>
+                      <th>File</th>
+                      <th>Line</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {codeEndpoints.map((endpoint, index) => (
+                      <tr key={index}>
+                        <td>
+                          <span style={{ 
+                            padding: '2px 6px', 
+                            borderRadius: '3px', 
+                            fontSize: '0.8rem', 
+                            fontWeight: 'bold',
+                            background: endpoint.method === 'GET' ? 'var(--green)' : endpoint.method === 'POST' ? 'var(--blue)' : 'var(--yellow)',
+                            color: 'white'
+                          }}>
+                            {endpoint.method}
+                          </span>
+                        </td>
+                        <td style={{ maxWidth: '300px', wordBreak: 'break-all' }}>{endpoint.url}</td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                          {endpoint.file ? endpoint.file.replace(/^.*[\\\/]/, '') : 'N/A'}
+                        </td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                          {endpoint.line || 'N/A'}
+                        </td>
+                        <td>
+                          <button 
+                            onClick={() => createRuleFromCodeEndpoint(endpoint)}
+                            style={{ 
+                              background: 'var(--green)', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '4px 8px', 
+                              borderRadius: '3px',
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            🎯 Create Rule
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(0,255,0,0.1)', borderRadius: '4px', fontSize: '0.9rem' }}>
+                <strong>💡 Analysis Summary:</strong>
+                <ul style={{ margin: '0.5rem 0', paddingLeft: '1.5rem' }}>
+                  <li>Found {codeEndpoints.length} actual API endpoint{codeEndpoints.length !== 1 ? 's' : ''} in use</li>
+                  <li>These are the endpoints your application actually calls</li>
+                  <li>Use this data to create targeted failure injection rules</li>
+                </ul>
+              </div>
+            </>
+          )}
+
+          {codeEndpoints.length === 0 && !codeAnalysisLoading && !codeAnalysisError && (
+            <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>
+              Click "Analyze" to scan your source code for API endpoints.
+              <br />
+              This will show you the actual endpoints your application uses.
+            </div>
+          )}
         </div>
 
         <div className="card">
