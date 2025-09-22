@@ -14,6 +14,7 @@ package main
 import (
 	"context"
 	"faultline/api"
+	"faultline/cli"
 	"faultline/config"
 	"faultline/proxy"
 	"faultline/state"
@@ -26,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"github.com/spf13/cobra"
@@ -35,22 +37,50 @@ func main() {
 	var proxyPort int
 	var apiPort int
 	var configFile string
+	var dataFile = "faultline-rules.json" // Default value
+
+	// Colors for CLI output
+	successColor := color.New(color.FgGreen, color.Bold)
 
 	var rootCmd = &cobra.Command{
 		Use:   "faultline",
 		Short: "A tool for injecting failure scenarios into your dev environment.",
+		Long: color.New(color.FgMagenta, color.Bold).Sprint(`
+╔══════════════════════════════════════════════════════════════╗
+║                        🚨 FaultLine                          ║
+║                                                              ║
+║    Failure injection proxy for development environments     ║
+║                                                              ║
+║    Use 'faultline start' to run the proxy server           ║
+║    Use 'faultline rules' to manage injection rules         ║
+╚══════════════════════════════════════════════════════════════╝
+`),
 	}
+
+	// Initialize shared rule state for both CLI and server components
+	ruleState := state.NewRuleState(nil, dataFile)
+	rm := cli.NewRuleManager(ruleState)
 
 	var startCmd = &cobra.Command{
 		Use:   "start",
 		Short: "Starts the FaultLine proxy and control API servers",
 		Run: func(cmd *cobra.Command, args []string) {
-			runServers(apiPort, proxyPort)
+			successColor.Println("🚀 Starting FaultLine servers...")
+			runServers(apiPort, proxyPort, rm)
 		},
 	}
 
 	startCmd.Flags().IntVarP(&proxyPort, "proxy-port", "p", 8080, "Port for the failure injection proxy")
 	startCmd.Flags().IntVarP(&apiPort, "api-port", "a", 8081, "Port for the control panel API")
+
+	// Global flags
+	rootCmd.PersistentFlags().StringVarP(&dataFile, "data", "d", "faultline-rules.json", "File to store rules data")
+
+	// Add CLI commands for rule management
+	cliCommands := cli.CreateCLICommands(rm)
+	for _, cmd := range cliCommands {
+		rootCmd.AddCommand(cmd)
+	}
 
 	rootCmd.AddCommand(startCmd)
 
@@ -94,12 +124,11 @@ func main() {
 }
 
 // runServers sets up and starts the API and proxy servers.
-func runServers(apiPort, proxyPort int) {
-	ruleState := state.NewRuleState(nil)
+func runServers(apiPort, proxyPort int, rm *cli.RuleManager) {
 
 	// --- Setup Control API Server ---
 	apiRouter := mux.NewRouter()
-	api.RegisterHandlers(apiRouter, ruleState)
+	api.RegisterHandlers(apiRouter, rm)
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:5174"},
@@ -115,7 +144,7 @@ func runServers(apiPort, proxyPort int) {
 	}
 
 	// --- Setup Proxy Server ---
-	p := proxy.NewProxy(ruleState)
+	p := proxy.NewProxy(rm)
 	proxyServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", proxyPort),
 		Handler: http.HandlerFunc(p.HandleRequest),

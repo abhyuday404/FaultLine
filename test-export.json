@@ -1,0 +1,29 @@
+[
+  {
+    "id": "e45e0ef3-fe3b-4e33-83ae-7f3ff586f79f",
+    "target": "https://jsonplaceholder.typicode.com/users",
+    "failure": {
+      "type": "timeout",
+      "latencyMs": 30000
+    },
+    "enabled": true
+  },
+  {
+    "id": "95edc7ed-57c1-47e4-aa87-ea58a79d85a1",
+    "target": "https://jsonplaceholder.typicode.com/users",
+    "failure": {
+      "type": "latency",
+      "latencyMs": 2000
+    },
+    "enabled": true
+  },
+  {
+    "id": "a68d9368-76c6-425b-a72f-09bc03c4d191",
+    "target": "https://jsonplaceholder.typicode.com/posts",
+    "failure": {
+      "type": "error",
+      "errorCode": 500
+    },
+    "enabled": false
+  }
+]

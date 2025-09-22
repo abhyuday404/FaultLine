@@ -1,0 +1,21 @@
+[
+  {
+    "id": "a68d9368-76c6-425b-a72f-09bc03c4d191",
+    "target": "https://jsonplaceholder.typicode.com/posts",
+    "failure": {
+      "type": "error",
+      "errorCode": 500
+    },
+    "enabled": false
+  },
+  {
+    "id": "fe5781d9-5b98-4594-8b9d-94cfaea1c9f9",
+    "target": "https://jsonplaceholder.typicode.com/users",
+    "failure": {
+      "type": "latency",
+      "latencyMs": 2000
+    },
+    "enabled": false,
+    "category": "api"
+  }
+]
