@@ -303,19 +303,33 @@ function App() {
             </div>
             <div className="form-group">
               <label htmlFor="dbType">Database Failure Type</label>
-              <select id="dbType" name="type" value={newDbRule.type} onChange={handleDbInputChange}>
-                <option value="connection_timeout">Connection Timeout</option>
-                <option value="query_timeout">Query Timeout</option>
-                <option value="connection_error">Connection Error</option>
+              <select 
+                id="dbType" 
+                name="type" 
+                value={newDbRule.type} 
+                onChange={handleDbInputChange}
+                className="form-select"
+              >
+                  <option value="timeout">Database Timeout</option>
+                  <option value="connection_error">Connection Error</option>
               </select>
             </div>
             <div className="form-group">
               <label htmlFor="dbValue">
-                {newDbRule.type === 'connection_timeout' ? 'Timeout (ms)' : 
-                 newDbRule.type === 'query_timeout' ? 'Query Timeout (ms)' : 
-                 'Error Code'}
+                  {newDbRule.type === 'timeout' 
+                      ? 'Timeout Duration (ms)' 
+                      : 'Error Message'
+                  }
               </label>
-              <input type="number" id="dbValue" name="value" value={newDbRule.value} onChange={handleDbInputChange} required />
+              <input
+                  type="text"
+                  id="dbValue"
+                  name="value"
+                  value={newDbRule.value}
+                  onChange={handleDbInputChange}
+                  className="form-input"
+                  placeholder={newDbRule.type === 'timeout' ? '5000' : 'Error message'}
+              />
             </div>
             <button type="submit">Add DB Rule</button>
           </form>
