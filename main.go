@@ -22,24 +22,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-<<<<<<< HEAD
-	"sync"
-
-	"faultline/api"
-	"faultline/config"
-	"faultline/proxy"
-	"faultline/state"
-	"faultline/tcp"
-=======
 	"os/signal"
 	"syscall"
 	"time"
->>>>>>> 86322c8fdb0be43f8fb1728e7d1629ab7483d810
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"github.com/spf13/cobra"
-	yaml "gopkg.in/yaml.v2"
 )
 
 func main() {
@@ -49,26 +38,12 @@ func main() {
 
 	var rootCmd = &cobra.Command{
 		Use:   "faultline",
-<<<<<<< HEAD
-		Short: "FaultLine: all-in-one failure testing for APIs and Databases",
-		Long: `FaultLine helps you build resilient apps by simulating real-world failures across:
- - API (HTTP) via a reverse proxy with latency/errors/flaky responses
- - DB (TCP) via a transparent proxy for network-level faults (latency, drops, throttling, refused)
-
-Configure scenarios in a YAML file and run targeted commands to test each surface.`,
-	}
-
-	var startCmd = &cobra.Command{
-		Use:   "start-api",
-		Short: "Start API (HTTP) fault-injection proxy",
-=======
 		Short: "A tool for injecting failure scenarios into your dev environment.",
 	}
 
 	var startCmd = &cobra.Command{
 		Use:   "start",
 		Short: "Starts the FaultLine proxy and control API servers",
->>>>>>> 86322c8fdb0be43f8fb1728e7d1629ab7483d810
 		Run: func(cmd *cobra.Command, args []string) {
 			runServers(apiPort, proxyPort)
 		},
