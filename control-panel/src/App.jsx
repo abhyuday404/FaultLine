@@ -310,7 +310,7 @@ function App() {
                 onChange={handleDbInputChange}
                 className="form-select"
               >
-                  <option value="timeout">Database Timeout</option>
+                  <option value="timeout">Timeout Error</option>
                   <option value="connection_error">Connection Error</option>
               </select>
             </div>
