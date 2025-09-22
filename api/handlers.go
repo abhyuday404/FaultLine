@@ -50,6 +50,10 @@ func (h *ApiHandler) AddRule(w http.ResponseWriter, r *http.Request) {
 	newRule.ID = uuid.New().String()
 	newRule.Enabled = true
 
+	// Default category to "api" if not provided, to preserve current behavior
+	if newRule.Category == "" {
+		newRule.Category = "api"
+	}
 	h.ruleState.AddRule(newRule)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

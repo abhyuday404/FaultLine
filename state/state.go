@@ -7,10 +7,11 @@ import (
 
 // Rule defines the structure for a failure rule, including JSON tags for API communication.
 type Rule struct {
-	ID      string  `json:"id"`
-	Target  string  `json:"target"`
-	Failure Failure `json:"failure"`
-	Enabled bool    `json:"enabled"`
+	ID       string  `json:"id"`
+	Target   string  `json:"target"`
+	Failure  Failure `json:"failure"`
+	Enabled  bool    `json:"enabled"`
+	Category string  `json:"category,omitempty"` // e.g., "api" | "database"
 }
 
 // Failure defines the specifics of a failure, using camelCase JSON tags.

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Styles are embedded directly into the component to make it self-contained.
 
@@ -43,7 +43,7 @@ const styles = `
     gap: 2rem;
     justify-content: center;
   }
-  .api-card {
+  .card {
     background-color: #1e1e1e;
     border: 1px solid #333;
     border-radius: 8px;
@@ -61,7 +61,7 @@ const styles = `
     color: #ffffff;
     flex-grow: 1;
   }
-  .api-card button {
+  .card button {
     padding: 0.8rem 1.5rem;
     font-size: 1rem;
     background-color: #5C5555;
@@ -72,7 +72,7 @@ const styles = `
     transition: background-color 0.2s;
     margin-bottom: 1rem;
   }
-  .api-card button:hover {
+  .card button:hover {
     background-color: #018786;
   }
   .response-box {
@@ -90,8 +90,29 @@ const styles = `
   .response-box .success { color: #90ee90; }
 `;
 
-const ApiCard = ({ title, description, endpoint }) => {
+const Card = ({ title, description, endpoint, type = 'api' }) => {
   const [status, setStatus] = useState({ state: 'idle', data: null, time: 0 });
+
+  const toTitleCase = (s) => s
+    .replace(/[\-_]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const deriveTitleFromEndpoint = (ep) => {
+    try {
+      const u = new URL(ep);
+      const parts = u.pathname.split('/').filter(Boolean);
+      const last = parts[parts.length - 1] || '/';
+      const friendly = `${u.hostname} • ${toTitleCase(last)}`;
+      return friendly;
+    } catch (_) {
+      // If ep isn't a full URL, fall back to last path chunk
+      const chunks = (ep || '').split('/').filter(Boolean);
+      const last = chunks[chunks.length - 1] || ep || 'Request';
+      return toTitleCase(last);
+    }
+  };
 
   const fetchData = async () => {
     const startTime = Date.now();
@@ -99,7 +120,11 @@ const ApiCard = ({ title, description, endpoint }) => {
 
     try {
       // The URL is constructed to go through the proxy to a live internet API
-      const response = await fetch(`http://localhost:8080/${endpoint}`);
+      const controller = new AbortController();
+      const timeoutMs = type === 'database' ? 8000 : 15000; // shorter timeout for DB queries
+      const timeoutId = setTimeout(() => controller.abort('Client-side timeout'), timeoutMs);
+      const response = await fetch(`http://localhost:8080/${endpoint}`, { signal: controller.signal });
+      clearTimeout(timeoutId);
       console.log("Trying to fetch from:- ");
       console.log(`http://localhost:8080/${endpoint}`);
       const timeTaken = Date.now() - startTime;
@@ -113,27 +138,34 @@ const ApiCard = ({ title, description, endpoint }) => {
 
     } catch (error) {
       const timeTaken = Date.now() - startTime;
-      setStatus({ state: 'error', data: error.message, time: timeTaken });
+      const msg = error?.name === 'AbortError' ? 'Request aborted (timeout)' : (error?.message || String(error));
+      setStatus({ state: 'error', data: msg, time: timeTaken });
     }
   };
 
+  const cardClassName = `card ${type === 'database' ? 'database' : ''}`;
+
+  const effectiveTitle = type === 'database' ? deriveTitleFromEndpoint(endpoint) : (title || deriveTitleFromEndpoint(endpoint));
+
   return (
-    <div className="api-card">
-      <h3>{title}</h3>
+    <div className={cardClassName}>
+      <h3>{effectiveTitle}</h3>
       <p>{description}</p>
-      <button onClick={fetchData}>Fetch /{endpoint.split('/').pop()}</button>
+      <button onClick={fetchData}>
+        {type === 'database' ? 'Query DB' : 'Fetch'} /{endpoint.split('/').pop()}
+      </button>
       <div className="response-box">
-        {status.state === 'idle' && <p>Click the button to fetch data...</p>}
-        {status.state === 'loading' && <p>Loading...</p>}
+        {status.state === 'idle' && <p>Click the button to {type === 'database' ? 'execute database query' : 'fetch data'}...</p>}
+        {status.state === 'loading' && <p>{type === 'database' ? 'Executing query...' : 'Loading...'}</p>}
         {status.state === 'error' && (
           <div className="error">
-            <p>ERROR! (Took {status.time}ms)</p>
-            <pre>{status.data}</pre>
+            <p>{type === 'database' ? 'DATABASE ERROR!' : 'ERROR!'} (Took {status.time}ms)</p>
+            <pre>{type === 'database' ? `DB Connection Failed: ${status.data}` : status.data}</pre>
           </div>
         )}
         {status.state === 'success' && (
           <div className="success">
-            <p>SUCCESS! (Took {status.time}ms)</p>
+            <p>{type === 'database' ? 'QUERY SUCCESS!' : 'SUCCESS!'} (Took {status.time}ms)</p>
             <pre>{JSON.stringify(status.data, null, 2).substring(0, 300)}...</pre>
           </div>
         )}
@@ -143,25 +175,83 @@ const ApiCard = ({ title, description, endpoint }) => {
 };
 
 function App() {
+  const [dbTargets, setDbTargets] = useState([]);
+
+  const fetchDbTargets = async () => {
+    try {
+      const res = await fetch('http://localhost:8081/api/rules');
+      if (!res.ok) return;
+      const data = await res.json();
+      const all = Array.isArray(data) ? data : [];
+      const dbRules = all.filter(r => r?.category === 'database');
+      const uniqueTargets = Array.from(new Set(
+        dbRules
+          .map(r => r?.target)
+          .filter(t => typeof t === 'string' && /^https?:\/\//.test(t))
+      ));
+      setDbTargets(uniqueTargets);
+    } catch (_) {
+      // non-blocking; fallback to defaults
+    }
+  };
+
+  useEffect(() => {
+    // Load rules from Control API and derive database targets dynamically
+    fetchDbTargets();
+  }, []);
+
   return (
     <>
       <style>{styles}</style>
       <div className="container">
         <header>
           <h1>FaultLine Showcase</h1>
-          <p>This app makes API calls to a live public API (JSONPlaceholder) through the FaultLine proxy. Use the Control Panel to inject failures and see the effects here.</p>
+          <p>This app makes API calls and simulates database operations through the FaultLine proxy. Use the Control Panel to inject failures and see the effects on both web APIs and database queries.</p>
         </header>
+        <div style={{ margin: '0 0 1rem 0', display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={fetchDbTargets} style={{ padding: '0.5rem 0.75rem', cursor: 'pointer' }}>
+            Refresh DB Endpoints
+          </button>
+        </div>
         <main className="cards-container">
-          <ApiCard 
+          <Card 
             title="Fetch Users"
             description="Fetches a list of users from the live JSONPlaceholder API."
             endpoint="https://jsonplaceholder.typicode.com/users"
           />
-          <ApiCard 
+          <Card 
             title="Fetch Posts"
             description="Fetches a list of posts. A good target for error injection."
             endpoint="https://jsonplaceholder.typicode.com/posts"
           />
+          {dbTargets.length > 0 ? (
+            dbTargets.map((t) => (
+              <Card
+                key={t}
+                description="Database query via HTTP endpoint. Adjust failures in Control Panel."
+                endpoint={t}
+                type="database"
+              />
+            ))
+          ) : (
+            <>
+              <Card 
+                description="Simulates fetching user records from a database. Perfect for testing database timeout and connection errors."
+                endpoint="https://jsonplaceholder.typicode.com/users?_limit=10"
+                type="database"
+              />
+              <Card 
+                description="Represents a complex database query that might fail due to connection issues or slow queries."
+                endpoint="https://jsonplaceholder.typicode.com/comments?_limit=5"
+                type="database"
+              />
+              <Card 
+                description="Simulates database album/media lookups that could experience network partitions or database unavailability."
+                endpoint="https://jsonplaceholder.typicode.com/albums"
+                type="database"
+              />
+            </>
+          )}
         </main>
       </div>
     </>
