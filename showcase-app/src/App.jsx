@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
-// Configuration
+
 const USE_FAULTLINE_PROXY = true; // Set to true to route requests through FaultLine proxy
 const FAULTLINE_PROXY_URL = 'http://localhost:8080';
 
@@ -202,22 +202,22 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>🚀 FaultLine Showcase</h1>
+        <h1> FaultLine Showcase</h1>
         <p>A minimalistic demo app for testing failure injection scenarios</p>
         <div className="proxy-status">
           {USE_FAULTLINE_PROXY ? (
-            <span className="status-indicator success">🔗 Using FaultLine Proxy (Port 8080)</span>
+            <span className="status-indicator success"> Using FaultLine Proxy (Port 8080)</span>
           ) : (
-            <span className="status-indicator error">🔗 Direct Requests (No Proxy)</span>
+            <span className="status-indicator error"> Direct Requests (No Proxy)</span>
           )}
         </div>
         <div className="faultline-status">
           {loading.faultline ? (
-            <span className="status-indicator loading">🔄 Checking FaultLine...</span>
+            <span className="status-indicator loading"> Checking FaultLine...</span>
           ) : errors.faultline ? (
-            <span className="status-indicator error">❌ FaultLine Offline</span>
+            <span className="status-indicator error"> FaultLine Offline</span>
           ) : (
-            <span className="status-indicator success">✅ FaultLine Connected</span>
+            <span className="status-indicator success"> FaultLine Connected</span>
           )}
         </div>
       </header>
@@ -225,7 +225,7 @@ function App() {
       <main className="app-main">
         {/* API Data Section */}
         <section className="data-section">
-          <h2>📡 Live API Data</h2>
+          <h2> Live API Data</h2>
           <div className="cards-grid">
             
             {/* Users Card */}
@@ -260,7 +260,7 @@ function App() {
             {/* Posts Card */}
             <div className="data-card">
               <div className="card-header">
-                <h3>📝 Recent Posts</h3>
+                <h3> Recent Posts</h3>
                 <button onClick={() => refreshData('posts')} disabled={loading.posts}>
                   {loading.posts ? "Refreshing..." : "Refresh"}
                 </button>
@@ -289,7 +289,7 @@ function App() {
             {/* Quote Card */}
             <div className="data-card">
               <div className="card-header">
-                <h3>💭 Daily Quote</h3>
+                <h3> Daily Quote</h3>
                 <button onClick={() => refreshData('quote')} disabled={loading.quote}>
                   {loading.quote ? "Refreshing..." : "Refresh"}
                 </button>
@@ -312,7 +312,7 @@ function App() {
             {/* Fun Fact Card */}
             <div className="data-card">
               <div className="card-header">
-                <h3>🎯 Random Fact</h3>
+                <h3> Random Fact</h3>
                 <button onClick={() => refreshData('fact')} disabled={loading.fact}>
                   {loading.fact ? "Refreshing..." : "Refresh"}
                 </button>
@@ -334,7 +334,7 @@ function App() {
             {/* Cat Image Card */}
             <div className="data-card">
               <div className="card-header">
-                <h3>🐱 Random Cat</h3>
+                <h3> Random Cat</h3>
                 <button onClick={() => refreshData('catImage')} disabled={loading.catImage}>
                   {loading.catImage ? "Refreshing..." : "Refresh"}
                 </button>
@@ -368,13 +368,13 @@ function App() {
 
         {/* Database Section */}
         <section className="data-section">
-          <h2>🗄️ Database Queries</h2>
+          <h2> Database Queries</h2>
           <div className="cards-grid">
             
             {/* Analytics Card */}
             <div className="data-card">
               <div className="card-header">
-                <h3>📊 Analytics</h3>
+                <h3> Analytics</h3>
                 <button onClick={() => refreshData('analytics')} disabled={loading.analytics}>
                   {loading.analytics ? "Refreshing..." : "Refresh"}
                 </button>
