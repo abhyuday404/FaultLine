@@ -336,7 +336,7 @@ function App() {
         </div>
 
         <div className="card">
-          <h2>🧬 Source Code Analysis</h2>
+          <h2>Source Code Analysis</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
             Analyze actual source code to discover API endpoints being used in your application.
           </p>
@@ -406,7 +406,7 @@ function App() {
                               fontSize: '0.8rem'
                             }}
                           >
-                            🎯 Create Rule
+                             Create Rule
                           </button>
                         </td>
                       </tr>

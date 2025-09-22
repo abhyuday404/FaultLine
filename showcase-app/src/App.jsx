@@ -233,7 +233,7 @@ function App() {
               <div className="card-header">
                 <h3>👥 Users</h3>
                 <button onClick={() => refreshData('users')} disabled={loading.users}>
-                  {loading.users ? '🔄' : '🔃'}
+                  {loading.users ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
               {errors.users ? (
@@ -262,7 +262,7 @@ function App() {
               <div className="card-header">
                 <h3>📝 Recent Posts</h3>
                 <button onClick={() => refreshData('posts')} disabled={loading.posts}>
-                  {loading.posts ? '🔄' : '🔃'}
+                  {loading.posts ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
               {errors.posts ? (
@@ -291,7 +291,7 @@ function App() {
               <div className="card-header">
                 <h3>💭 Daily Quote</h3>
                 <button onClick={() => refreshData('quote')} disabled={loading.quote}>
-                  {loading.quote ? '🔄' : '🔃'}
+                  {loading.quote ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
               {errors.quote ? (
@@ -314,7 +314,7 @@ function App() {
               <div className="card-header">
                 <h3>🎯 Random Fact</h3>
                 <button onClick={() => refreshData('fact')} disabled={loading.fact}>
-                  {loading.fact ? '🔄' : '🔃'}
+                  {loading.fact ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
               {errors.fact ? (
@@ -336,7 +336,7 @@ function App() {
               <div className="card-header">
                 <h3>🐱 Random Cat</h3>
                 <button onClick={() => refreshData('catImage')} disabled={loading.catImage}>
-                  {loading.catImage ? '🔄' : '🔃'}
+                  {loading.catImage ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
               {errors.catImage ? (
@@ -376,7 +376,7 @@ function App() {
               <div className="card-header">
                 <h3>📊 Analytics</h3>
                 <button onClick={() => refreshData('analytics')} disabled={loading.analytics}>
-                  {loading.analytics ? '🔄' : '🔃'}
+                  {loading.analytics ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
               {errors.analytics ? (
@@ -412,7 +412,7 @@ function App() {
               <div className="card-header">
                 <h3>👤 User Profiles</h3>
                 <button onClick={() => refreshData('userProfiles')} disabled={loading.userProfiles}>
-                  {loading.userProfiles ? '🔄' : '🔃'}
+                  {loading.userProfiles ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
               {errors.userProfiles ? (
@@ -439,7 +439,7 @@ function App() {
               <div className="card-header">
                 <h3>🛒 Recent Orders</h3>
                 <button onClick={() => refreshData('orders')} disabled={loading.orders}>
-                  {loading.orders ? '🔄' : '🔃'}
+                  {loading.orders ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
               {errors.orders ? (
