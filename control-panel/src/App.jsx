@@ -314,67 +314,9 @@ function App() {
             </tbody>
           </table>
         </div>
-
-        <div className="card database">
-          <h2>🗄️ Active Database Rules</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Database Endpoint</th>
-                <th>Failure Type</th>
-                <th>Value</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dbRules.map(rule => (
-                <tr key={rule.id} className={!rule.enabled ? 'disabled' : ''}>
-                  <td>{(() => {
-                    try {
-                      const u = new URL(rule.target);
-                      const parts = u.pathname.split('/').filter(Boolean);
-                      const last = parts[parts.length - 1] || '/';
-                      const toTitle = (s) => s
-                        .replace(/[\-_]/g, ' ')
-                        .replace(/\s+/g, ' ')
-                        .trim()
-                        .replace(/\b\w/g, (c) => c.toUpperCase());
-                      return `${u.hostname} • ${toTitle(last)}`;
-                    } catch {
-                      return rule.target;
-                    }
-                  })()}</td>
-                  <td>
-                    {rule.failure && rule.failure.type && (
-                      <span className={`badge ${rule.failure.type}`}>
-                        {rule.failure.type.replace('_', ' ').toUpperCase()}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {rule.failure?.type === 'latency' && `${rule.failure.latencyMs}ms`}
-                    {rule.failure?.type === 'error' && rule.failure.errorCode}
-                  </td>
-                  <td>
-                    <button onClick={() => handleUpdateDbRule(rule)} className="toggle-btn" title={rule.enabled ? "Disable Rule" : "Enable Rule"}>
-                      {rule.enabled ? '🟢' : '⚪️'}
-                    </button>
-                  </td>
-                  <td>
-                    <button onClick={() => handleDeleteDbRule(rule.id)} className="delete-btn">
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     </>
   );
 }
 
 export default App;
-
