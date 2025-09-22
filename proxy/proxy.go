@@ -39,7 +39,7 @@ func (p *Proxy) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		targetURLString += "?" + r.URL.RawQuery
 	}
 
-	// Check if any rule matches the requested URL
+	// Check if any rule matches the requested URL (category is ignored here; UI uses it for grouping only)
 	if rule, ok := p.ruleState.FindRuleForTarget(targetURLString); ok {
 		log.Printf("[RULE MATCH] Target: %s -> Injecting Failure: %s", rule.Target, rule.Failure.Type)
 		p.injectFailure(w, r, rule)

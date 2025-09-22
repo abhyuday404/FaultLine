@@ -10,3 +10,29 @@ rules:
     failure:
       type: "error"
       error_code: 503
+
+# --- TCP rules for real databases (Option B) ---
+# These operate at the network (TCP) layer and affect any client connecting
+# to the local listen address. Point your application to the "listen" address
+# instead of the real database. Faults: latency, drop/reset, throttle, refuse.
+
+tcpRules:
+  # Example: Postgres with 2s added latency
+  - listen: "127.0.0.1:55432"       # app connects here
+    upstream: "localhost:5432"       # your real Postgres
+    faults:
+      latency_ms: 2000               # add 2s latency
+      drop_probability: 0.0          # drop 0% of chunks
+      reset_probability: 0.0         # never reset abruptly
+      bandwidth_kbps: 0              # 0=unlimited
+      refuse_connections: false
+
+  # Example: MySQL throttled to 256 kbps and 10% random drop
+  - listen: "127.0.0.1:53306"       # app connects here
+    upstream: "localhost:3306"       # your real MySQL
+    faults:
+      latency_ms: 0
+      drop_probability: 0.1          # randomly drop ~10% of chunks
+      reset_probability: 0.0
+      bandwidth_kbps: 256            # throttle bandwidth
+      refuse_connections: false

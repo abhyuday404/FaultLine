@@ -19,6 +19,8 @@ const styles = `
     font-family: var(--font-family);
     background-color: var(--bg-color);
     color: var(--text-color);
+    width: 100%;
+    justify-content: center;
     margin: 0;
     padding: 2rem;
   }
@@ -36,6 +38,8 @@ const styles = `
   .badge.error { background-color: var(--red); }
   .badge.latency { background-color: var(--orange); }
   .badge.flaky { background-color: var(--accent-color); }
+  .card.database { border-left: 4px solid #ff9800; background-color: #2a2520; }
+  .card.database h2 { color: #ffb74d; }
   .form-grid { display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: flex-end; }
   .form-group { display: flex; flex-direction: column; }
   label { margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-muted); }
@@ -69,6 +73,11 @@ function App() {
     type: 'error',
     value: '503',
   });
+  const [newDbRule, setNewDbRule] = useState({
+    target: '',
+    type: 'connection_timeout',
+    value: '5000',
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -77,7 +86,9 @@ function App() {
       const response = await fetch(`${API_URL}/api/rules`);
       if (!response.ok) throw new Error('Failed to fetch rules');
       const data = await response.json();
-      setRules(data || []);
+      const all = data || [];
+      // Show all rules in a single table regardless of category
+      setRules(all);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -89,9 +100,51 @@ function App() {
     fetchRules();
   }, [fetchRules]);
 
+  const handleDbInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewDbRule(prev => ({ ...prev, [name]: value }));
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setNewRule(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddDbRule = async (e) => {
+    e.preventDefault();
+    try {
+      // Map UI DB types to backend-supported failure types
+      const mappedType = newDbRule.type === 'connection_error' ? 'error' : 'latency';
+      const latencyMs = (newDbRule.type === 'connection_timeout' || newDbRule.type === 'query_timeout')
+        ? parseInt(newDbRule.value, 10)
+        : 0;
+      const errorCode = newDbRule.type === 'connection_error'
+        ? parseInt(newDbRule.value, 10)
+        : 0;
+
+      const newDbRulePayload = {
+        target: newDbRule.target,
+        category: 'database',
+        failure: {
+          type: mappedType,
+          latencyMs,
+          errorCode,
+        },
+      };
+
+      const response = await fetch(`${API_URL}/api/rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDbRulePayload),
+      });
+
+      if (!response.ok) throw new Error('Failed to add database rule');
+      const addedRule = await response.json();
+      // Append to unified rules list
+      setRules(prev => [...prev, addedRule]);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const handleAddRule = async (e) => {
@@ -100,6 +153,7 @@ function App() {
       // Standardize on camelCase for the payload
       const newRulePayload = {
         target: newRule.target,
+        category: 'api',
         failure: {
           type: newRule.type,
           latencyMs: newRule.type === 'latency' ? parseInt(newRule.value, 10) : 0,
@@ -120,6 +174,8 @@ function App() {
       setError(err.message);
     }
   };
+
+  // (DB update/delete handlers removed; unified table uses generic handlers below)
 
   const handleUpdateRule = async (rule) => {
     try {
@@ -181,6 +237,41 @@ function App() {
           </form>
         </div>
 
+        <div className="card database">
+          <h2>🗄️ Add Database Failure Rule</h2>
+          <form onSubmit={handleAddDbRule} className="form-grid">
+            <div className="form-group">
+              <label htmlFor="dbTarget">Database URL (HTTP/S via proxy)</label>
+              <input
+                type="url"
+                id="dbTarget"
+                name="target"
+                placeholder="e.g. https://your-db-api/records"
+                value={newDbRule.target}
+                onChange={handleDbInputChange}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="dbType">Database Failure Type</label>
+              <select id="dbType" name="type" value={newDbRule.type} onChange={handleDbInputChange}>
+                <option value="connection_timeout">Connection Timeout</option>
+                <option value="query_timeout">Query Timeout</option>
+                <option value="connection_error">Connection Error</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="dbValue">
+                {newDbRule.type === 'connection_timeout' ? 'Timeout (ms)' : 
+                 newDbRule.type === 'query_timeout' ? 'Query Timeout (ms)' : 
+                 'Error Code'}
+              </label>
+              <input type="number" id="dbValue" name="value" value={newDbRule.value} onChange={handleDbInputChange} required />
+            </div>
+            <button type="submit">Add DB Rule</button>
+          </form>
+        </div>
+
         <div className="card">
           <h2>Active Rules</h2>
           <table>
@@ -215,6 +306,63 @@ function App() {
                   </td>
                   <td>
                     <button onClick={() => handleDeleteRule(rule.id)} className="delete-btn">
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card database">
+          <h2>🗄️ Active Database Rules</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Database Endpoint</th>
+                <th>Failure Type</th>
+                <th>Value</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dbRules.map(rule => (
+                <tr key={rule.id} className={!rule.enabled ? 'disabled' : ''}>
+                  <td>{(() => {
+                    try {
+                      const u = new URL(rule.target);
+                      const parts = u.pathname.split('/').filter(Boolean);
+                      const last = parts[parts.length - 1] || '/';
+                      const toTitle = (s) => s
+                        .replace(/[\-_]/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim()
+                        .replace(/\b\w/g, (c) => c.toUpperCase());
+                      return `${u.hostname} • ${toTitle(last)}`;
+                    } catch {
+                      return rule.target;
+                    }
+                  })()}</td>
+                  <td>
+                    {rule.failure && rule.failure.type && (
+                      <span className={`badge ${rule.failure.type}`}>
+                        {rule.failure.type.replace('_', ' ').toUpperCase()}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    {rule.failure?.type === 'latency' && `${rule.failure.latencyMs}ms`}
+                    {rule.failure?.type === 'error' && rule.failure.errorCode}
+                  </td>
+                  <td>
+                    <button onClick={() => handleUpdateDbRule(rule)} className="toggle-btn" title={rule.enabled ? "Disable Rule" : "Enable Rule"}>
+                      {rule.enabled ? '🟢' : '⚪️'}
+                    </button>
+                  </td>
+                  <td>
+                    <button onClick={() => handleDeleteDbRule(rule.id)} className="delete-btn">
                       Delete
                     </button>
                   </td>

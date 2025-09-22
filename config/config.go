@@ -26,20 +26,20 @@ type Failure struct {
 	Probability float64 `yaml:"probability,omitempty"` // For "flaky" type
 }
 
-// TCPRule defines a TCP proxy with faults to apply between a local listener and an upstream address.
+// TCPRule defines a TCP-level proxy for DB/network fault injection
 type TCPRule struct {
 	Listen   string    `yaml:"listen"`   // e.g., 127.0.0.1:55432
-	Upstream string    `yaml:"upstream"` // e.g., db.internal:5432
+	Upstream string    `yaml:"upstream"` // e.g., localhost:5432
 	Faults   TCPFaults `yaml:"faults"`
 }
 
-// TCPFaults specify fault injection parameters for TCP traffic.
+// TCPFaults contains knobs to simulate network failures at L4
 type TCPFaults struct {
-	LatencyMs         int     `yaml:"latency_ms,omitempty"`         // Initial per-connection latency
-	ResetProbability  float64 `yaml:"reset_probability,omitempty"`  // Chance to abruptly reset a connection after accept
-	DropProbability   float64 `yaml:"drop_probability,omitempty"`   // Chance per-chunk to drop data
-	BandwidthKbps     int     `yaml:"bandwidth_kbps,omitempty"`     // Throttle writes to approx kbps
-	RefuseConnections bool    `yaml:"refuse_connections,omitempty"` // If true, refuse/close incoming connections immediately
+	LatencyMs         int     `yaml:"latency_ms,omitempty"`
+	DropProbability   float64 `yaml:"drop_probability,omitempty"`
+	ResetProbability  float64 `yaml:"reset_probability,omitempty"`
+	BandwidthKbps     int     `yaml:"bandwidth_kbps,omitempty"`
+	RefuseConnections bool    `yaml:"refuse_connections,omitempty"`
 }
 
 // LoadConfig reads a YAML file and returns a Config struct.
