@@ -1,34 +1,47 @@
 import { useState } from 'react';
 
 // Styles are embedded directly into the component to make it self-contained.
+
 const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;700&display=swap');
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background-color: #121212;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 500;
+    background-color: #262626;
     color: #e0e0e0;
+    width: 100%;
+    justify-content: center;
     margin: 0;
-    padding: 2rem;
+    padding: 0;
   }
   .container {
     max-width: 1000px;
     margin: 0 auto;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    justify-content: center;
+
   }
   header {
     text-align: center;
     margin-bottom: 3rem;
   }
   header h1 {
-    color: #bb86fc;
+    color: #ffffff;
     font-size: 2.5rem;
+    font-weight: 900;
   }
   header p {
     font-size: 1.1rem;
-    color: #a0a0a0;
+    color: #ffffff;
   }
   .cards-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
     gap: 2rem;
+    justify-content: center;
   }
   .api-card {
     background-color: #1e1e1e;
@@ -37,20 +50,22 @@ const styles = `
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
+    text-align: center;    
   }
   .api-card h3 {
     margin-top: 0;
-    color: #03dac6;
+    color: #ffffff;
+    font-weight: 400;
   }
   .api-card p {
-    color: #a0a0a0;
+    color: #ffffff;
     flex-grow: 1;
   }
   .api-card button {
     padding: 0.8rem 1.5rem;
     font-size: 1rem;
-    background-color: #03dac6;
-    color: #121212;
+    background-color: #5C5555;
+    color: #ffffff;
     border: none;
     border-radius: 5px;
     cursor: pointer;
@@ -65,10 +80,11 @@ const styles = `
     border-radius: 5px;
     padding: 1rem;
     min-height: 150px;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: 'Poppins', sans-serif;
     font-size: 0.85rem;
     white-space: pre-wrap;
     word-break: break-all;
+    text-align: center;
   }
   .response-box .error { color: #cf6679; }
   .response-box .success { color: #90ee90; }
