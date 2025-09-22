@@ -75,7 +75,7 @@ function App() {
   });
   const [newDbRule, setNewDbRule] = useState({
     target: '',
-    type: 'connection_timeout',
+    type: 'timeout',
     value: '5000',
   });
   const [loading, setLoading] = useState(true);
@@ -163,13 +163,9 @@ function App() {
     e.preventDefault();
     try {
       // Map UI DB types to backend-supported failure types
-      const mappedType = newDbRule.type === 'connection_error' ? 'error' : 'latency';
-      const latencyMs = (newDbRule.type === 'connection_timeout' || newDbRule.type === 'query_timeout')
-        ? parseInt(newDbRule.value, 10)
-        : 0;
-      const errorCode = newDbRule.type === 'connection_error'
-        ? parseInt(newDbRule.value, 10)
-        : 0;
+      const mappedType = newDbRule.type === 'error' ? 'error' : 'latency';
+      const latencyMs = newDbRule.type === 'timeout' ? parseInt(newDbRule.value, 10) : 0;
+      const errorCode = newDbRule.type === 'error' ? parseInt(newDbRule.value, 10) : 0;
 
       const newDbRulePayload = {
         target: newDbRule.target,
@@ -265,7 +261,7 @@ function App() {
         <h1>FaultLine Control Panel</h1>
         
         <div className="card">
-          <h2>Add New Failure Rule</h2>
+          <h2>Add API Failure Rule</h2>
           <form onSubmit={handleAddRule} className="form-grid">
             <div className="form-group">
               <label htmlFor="target">Target URL Prefix</label>
@@ -295,7 +291,7 @@ function App() {
                 type="url"
                 id="dbTarget"
                 name="target"
-                placeholder="e.g. https://your-db-api/records"
+                placeholder="e.g. https://jsonplaceholder.typicode.com/users"
                 value={newDbRule.target}
                 onChange={handleDbInputChange}
                 required
@@ -310,25 +306,25 @@ function App() {
                 onChange={handleDbInputChange}
                 className="form-select"
               >
-                  <option value="timeout">Timeout Error</option>
-                  <option value="connection_error">Connection Error</option>
+                  <option value="timeout">Timeout</option>
+                  <option value="error">Error</option>
               </select>
             </div>
             <div className="form-group">
               <label htmlFor="dbValue">
                   {newDbRule.type === 'timeout' 
-                      ? 'Timeout Duration (ms)' 
-                      : 'Error Message'
+                      ? 'Timeout (ms)'
+                      : 'HTTP Status Code'
                   }
               </label>
               <input
-                  type="text"
+                  type="number"
                   id="dbValue"
                   name="value"
                   value={newDbRule.value}
                   onChange={handleDbInputChange}
                   className="form-input"
-                  placeholder={newDbRule.type === 'timeout' ? '5000' : 'Error message'}
+                  placeholder={newDbRule.type === 'timeout' ? '5000' : '503'}
               />
             </div>
             <button type="submit">Add DB Rule</button>
@@ -336,7 +332,7 @@ function App() {
         </div>
 
         <div className="card">
-          <h2>Source Code Analysis</h2>
+          <h2>Source Code Analysis (For API Endpoints Only)</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
             Analyze actual source code to discover API endpoints being used in your application.
           </p>

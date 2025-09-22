@@ -90,32 +90,6 @@ func (p *Proxy) serveReverseProxy(target string, w http.ResponseWriter, r *http.
 
 	proxy := httputil.NewSingleHostReverseProxy(remote)
 
-	// Capture the incoming request's Origin header so we can echo it back in
-	// the response. This avoids using '*' which combined with an upstream
-	// origin value could create multiple values and fail the browser check.
-	incomingOrigin := r.Header.Get("Origin")
-
-	// Normalize/remove upstream CORS headers then set a single, appropriate
-	// Access-Control-Allow-Origin value. Prefer the incoming Origin (if
-	// present) otherwise fall back to a wildcard.
-	proxy.ModifyResponse = func(resp *http.Response) error {
-		// Remove any upstream CORS headers we don't control
-		resp.Header.Del("Access-Control-Allow-Origin")
-		resp.Header.Del("Access-Control-Allow-Headers")
-		resp.Header.Del("Access-Control-Allow-Methods")
-
-		// Use the incoming origin when available to avoid '*' + origin
-		if incomingOrigin != "" {
-			resp.Header.Set("Access-Control-Allow-Origin", incomingOrigin)
-		} else {
-			resp.Header.Set("Access-Control-Allow-Origin", "*")
-		}
-		resp.Header.Set("Access-Control-Allow-Headers", "Content-Type")
-		resp.Header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-
-		return nil
-	}
-
 	// *** THE DEFINITIVE FIX IS HERE ***
 	// The original request to our proxy is, for example, GET /https://jsonplaceholder.typicode.com/users
 	// The 'Director' must correctly rewrite this to be a valid request to the final server.

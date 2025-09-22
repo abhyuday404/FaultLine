@@ -92,45 +92,27 @@ function App() {
     }
   }
 
-  // Simulate database calls (in a real app, these would be actual DB queries)
-  const simulateDbCall = async (type) => {
-    setLoading(prev => ({ ...prev, [type]: true }))
-    setErrors(prev => ({ ...prev, [type]: null }))
-    
-    try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1200))
-      
-      // Generate mock data based on type
-      switch (type) {
-        case 'analytics':
-          setAnalytics({
-            pageViews: Math.floor(Math.random() * 10000) + 5000,
-            uniqueVisitors: Math.floor(Math.random() * 3000) + 1500,
-            bounceRate: (Math.random() * 30 + 20).toFixed(1),
-            avgSessionTime: `${Math.floor(Math.random() * 5) + 2}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')}`
-          })
-          break
-        case 'userProfiles':
-          setUserProfiles([
-            { id: 1, name: 'Alice Johnson', email: 'alice@example.com', status: 'active', lastLogin: '2025-09-22' },
-            { id: 2, name: 'Bob Smith', email: 'bob@example.com', status: 'inactive', lastLogin: '2025-09-20' },
-            { id: 3, name: 'Carol Brown', email: 'carol@example.com', status: 'active', lastLogin: '2025-09-23' }
-          ])
-          break
-        case 'orders':
-          setOrders([
-            { id: 'ORD-001', customer: 'John Doe', amount: '$245.99', status: 'completed', date: '2025-09-22' },
-            { id: 'ORD-002', customer: 'Jane Smith', amount: '$89.50', status: 'processing', date: '2025-09-23' },
-            { id: 'ORD-003', customer: 'Mike Johnson', amount: '$156.75', status: 'shipped', date: '2025-09-21' }
-          ])
-          break
-      }
-    } catch (error) {
-      setErrors(prev => ({ ...prev, [type]: 'Database connection failed' }))
-    } finally {
-      setLoading(prev => ({ ...prev, [type]: false }))
-    }
+  // Load "database"-like sections using real APIs via the FaultLine proxy
+  const loadAnalytics = async () => {
+    // Derive simple analytics from JSONPlaceholder comments
+    await fetchDataWithLatency('https://jsonplaceholder.typicode.com/comments', (data) => {
+      const totalComments = data.length
+      const uniquePosts = new Set(data.map(c => c.postId)).size
+      const avgCommentLength = Math.round(data.reduce((acc, c) => acc + (c.body?.length || 0), 0) / Math.max(1, data.length))
+      setAnalytics({ totalComments, uniquePosts, avgCommentLength })
+    }, 'analytics')
+  }
+
+  const loadUserProfiles = async () => {
+    await fetchDataWithLatency('https://jsonplaceholder.typicode.com/users', (data) => {
+      setUserProfiles(data)
+    }, 'userProfiles')
+  }
+
+  const loadOrders = async () => {
+    await fetchDataWithLatency('https://jsonplaceholder.typicode.com/todos', (data) => {
+      setOrders(data.slice(0, 6))
+    }, 'orders')
   }
 
   // Load initial data
@@ -149,15 +131,15 @@ function App() {
       (data) => setPosts(data.slice(0, 5)), 'posts')
     fetchDataWithLatency('https://zenquotes.io/api/random', 
       (data) => setQuote(data[0]), 'quote')
-    fetchDataWithLatency('https://uselessfacts.jsph.pl/random.json?language=en', setFact, 'fact')
+  fetchDataWithLatency(`https://uselessfacts.jsph.pl/random.json?language=en&_t=${Date.now()}`, setFact, 'fact', { cache: 'no-store' })
     fetchDataWithLatency('http://localhost:8081/api/rules', setFaultlineStatus, 'faultline')
     fetchDataWithLatency('https://api.thecatapi.com/v1/images/search', 
       (data) => setCatImage(data[0]), 'catImage')
     
-    // Simulate database calls
-    simulateDbCall('analytics')
-    simulateDbCall('userProfiles')
-    simulateDbCall('orders')
+    // Load database-like sections via real APIs
+    loadAnalytics()
+    loadUserProfiles()
+    loadOrders()
   }, [])
 
   // Refresh functions for manual testing with latency measurement
@@ -175,7 +157,7 @@ function App() {
           (data) => setQuote(data[0]), 'quote')
         break
       case 'fact':
-        await fetchDataWithLatency('https://uselessfacts.jsph.pl/random.json?language=en', setFact, 'fact')
+        await fetchDataWithLatency(`https://uselessfacts.jsph.pl/random.json?language=en&_t=${Date.now()}`, setFact, 'fact', { cache: 'no-store' })
         break
       case 'faultline':
         await fetchDataWithLatency('http://localhost:8081/api/rules', setFaultlineStatus, 'faultline')
@@ -185,7 +167,9 @@ function App() {
           (data) => setCatImage(data[0]), 'catImage')
         break
       default:
-        simulateDbCall(type)
+        if (type === 'analytics') return loadAnalytics()
+        if (type === 'userProfiles') return loadUserProfiles()
+        if (type === 'orders') return loadOrders()
     }
   }
 
@@ -366,12 +350,12 @@ function App() {
           </div>
         </section>
 
-        {/* Database Section */}
+        {/* Database Section (simulated via JSONPlaceholder through FaultLine proxy) */}
         <section className="data-section">
           <h2> Database Queries</h2>
           <div className="cards-grid">
             
-            {/* Analytics Card */}
+            {/* Analytics Card (derived from comments) */}
             <div className="data-card">
               <div className="card-header">
                 <h3> Analytics</h3>
@@ -383,22 +367,24 @@ function App() {
                 <div className="error-message">{errors.analytics}</div>
               ) : analytics ? (
                 <div className="card-content">
+                  <div className="metric" style={{ marginBottom: '0.5rem' }}>
+                    Simulated metrics from /comments
+                    {latency.analytics && (
+                      <span className="latency"> • {latency.analytics}ms</span>
+                    )}
+                  </div>
                   <div className="metrics-grid">
                     <div className="metric-item">
-                      <div className="metric-value">{analytics.pageViews.toLocaleString()}</div>
-                      <div className="metric-label">Page Views</div>
+                      <div className="metric-value">{analytics.totalComments.toLocaleString()}</div>
+                      <div className="metric-label">Total Comments</div>
                     </div>
                     <div className="metric-item">
-                      <div className="metric-value">{analytics.uniqueVisitors.toLocaleString()}</div>
-                      <div className="metric-label">Unique Visitors</div>
+                      <div className="metric-value">{analytics.uniquePosts.toLocaleString()}</div>
+                      <div className="metric-label">Posts with Comments</div>
                     </div>
                     <div className="metric-item">
-                      <div className="metric-value">{analytics.bounceRate}%</div>
-                      <div className="metric-label">Bounce Rate</div>
-                    </div>
-                    <div className="metric-item">
-                      <div className="metric-value">{analytics.avgSessionTime}</div>
-                      <div className="metric-label">Avg Session</div>
+                      <div className="metric-value">{analytics.avgCommentLength} chars</div>
+                      <div className="metric-label">Avg Comment Length</div>
                     </div>
                   </div>
                 </div>
@@ -407,10 +393,10 @@ function App() {
               )}
             </div>
 
-            {/* User Profiles Card */}
+            {/* User Profiles Card (from /users) */}
             <div className="data-card">
               <div className="card-header">
-                <h3>👤 User Profiles</h3>
+                <h3>Users</h3>
                 <button onClick={() => refreshData('userProfiles')} disabled={loading.userProfiles}>
                   {loading.userProfiles ? "Refreshing..." : "Refresh"}
                 </button>
@@ -419,14 +405,20 @@ function App() {
                 <div className="error-message">{errors.userProfiles}</div>
               ) : (
                 <div className="card-content">
+                  <div className="metric" style={{ marginBottom: '0.5rem' }}>
+                    {userProfiles.length} users loaded from /users
+                    {latency.userProfiles && (
+                      <span className="latency"> • {latency.userProfiles}ms</span>
+                    )}
+                  </div>
                   <div className="table-container">
-                    {userProfiles.map(profile => (
+                    {userProfiles.slice(0, 6).map(profile => (
                       <div key={profile.id} className="profile-item">
                         <div className="profile-info">
                           <strong>{profile.name}</strong>
-                          <span className={`status ${profile.status}`}>{profile.status}</span>
+                          <span className="status">@{profile.username}</span>
                         </div>
-                        <div className="profile-meta">Last login: {profile.lastLogin}</div>
+                        <div className="profile-meta">{profile.email} • {profile.company?.name}</div>
                       </div>
                     ))}
                   </div>
@@ -434,10 +426,10 @@ function App() {
               )}
             </div>
 
-            {/* Orders Card */}
+            {/* Orders Card (from /todos) */}
             <div className="data-card">
               <div className="card-header">
-                <h3>🛒 Recent Orders</h3>
+                <h3>ToDos</h3>
                 <button onClick={() => refreshData('orders')} disabled={loading.orders}>
                   {loading.orders ? "Refreshing..." : "Refresh"}
                 </button>
@@ -446,16 +438,24 @@ function App() {
                 <div className="error-message">{errors.orders}</div>
               ) : (
                 <div className="card-content">
+                  <div className="metric" style={{ marginBottom: '0.5rem' }}>
+                    {orders.length} items from /todos
+                    {latency.orders && (
+                      <span className="latency"> • {latency.orders}ms</span>
+                    )}
+                  </div>
                   <div className="table-container">
-                    {orders.map(order => (
-                      <div key={order.id} className="order-item">
+                    {orders.map(todo => (
+                      <div key={todo.id} className="order-item">
                         <div className="order-info">
-                          <strong>{order.id}</strong>
-                          <span className="amount">{order.amount}</span>
+                          <strong>#{todo.id}</strong>
+                          <span className="amount">{todo.title.substring(0, 24)}...</span>
                         </div>
                         <div className="order-meta">
-                          <span className={`status ${order.status}`}>{order.status}</span>
-                          <span className="date">{order.date}</span>
+                          <span className={`status ${todo.completed ? 'completed' : 'pending'}`}>
+                            {todo.completed ? 'completed' : 'pending'}
+                          </span>
+                          <span className="date">user {todo.userId}</span>
                         </div>
                       </div>
                     ))}
@@ -465,7 +465,6 @@ function App() {
             </div>
           </div>
         </section>
-
       </main>
     </div>
   )

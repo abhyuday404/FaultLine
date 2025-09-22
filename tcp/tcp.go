@@ -2,150 +2,208 @@ package tcp
 
 import (
 	"errors"
-	"fmt"
+	"faultline/config"
 	"io"
 	"log"
 	"math/rand"
 	"net"
-	"sync/atomic"
+	"sync"
 	"time"
-
-	"faultline/config"
 )
 
-// Proxy is a TCP proxy with fault injection knobs.
-// It listens on rule.Listen and forwards to rule.Upstream with faults.
+// Local RNG for randomized faults (drop/reset probabilities), avoids deprecated global seeding.
+var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+// Proxy represents a single TCP proxy instance with configured faults.
 type Proxy struct {
 	rule config.TCPRule
 }
 
+// dirStats holds per-direction counters for a single proxied connection.
+type dirStats struct {
+	bytes         int64
+	chunks        int64
+	drops         int64
+	writes        int64
+	throttleSleep time.Duration
+	latencySleep  time.Duration
+}
+
+// NewProxy creates a new TCP proxy for the given rule.
 func NewProxy(rule config.TCPRule) *Proxy {
 	return &Proxy{rule: rule}
 }
 
-// Start begins accepting connections and proxying data until stop is closed.
+// Start begins listening on the rule.Listen address and proxies to rule.Upstream.
 func (p *Proxy) Start(stop <-chan struct{}) error {
-	if p.rule.Faults.RefuseConnections {
-		log.Printf("[DB] Refusing connections on %s (configured)", p.rule.Listen)
-	}
-
 	ln, err := net.Listen("tcp", p.rule.Listen)
 	if err != nil {
-		return fmt.Errorf("listen %s: %w", p.rule.Listen, err)
+		return err
 	}
-	defer ln.Close()
 	log.Printf("[DB] Listening on %s -> %s", p.rule.Listen, p.rule.Upstream)
 
-	var tempDelay time.Duration
+	var wg sync.WaitGroup
+
+	go func() {
+		<-stop
+		ln.Close()
+	}()
+
 	for {
-		ln.(*net.TCPListener).SetDeadline(time.Now().Add(500 * time.Millisecond))
 		conn, err := ln.Accept()
-		if ne, ok := err.(net.Error); ok && ne.Timeout() {
-			select {
-			case <-stop:
-				return nil
-			default:
+		if err != nil {
+			// Listener closed during shutdown: exit accept loop
+			if errors.Is(err, net.ErrClosed) {
+				break
+			}
+			// Temporary/timeout error: brief backoff and continue
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				time.Sleep(50 * time.Millisecond)
 				continue
 			}
-		}
-		if err != nil {
-			if tempDelay == 0 {
-				tempDelay = 5 * time.Millisecond
-			} else {
-				tempDelay *= 2
-			}
-			if max := 1 * time.Second; tempDelay > max {
-				tempDelay = max
-			}
-			log.Printf("[DB] accept error: %v; retrying in %v", err, tempDelay)
-			time.Sleep(tempDelay)
+			// Other errors: log and backoff to avoid busy loop
+			log.Printf("[DB] Accept error on %s: %v", p.rule.Listen, err)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
-		tempDelay = 0
 
-		go p.handleConn(conn)
+		wg.Add(1)
+		go func(c net.Conn) {
+			defer wg.Done()
+			p.handleConn(c)
+		}(conn)
 	}
+
+	wg.Wait()
+	return nil
 }
 
 func (p *Proxy) handleConn(client net.Conn) {
-	defer client.Close()
+	faults := p.rule.Faults
+	clientAddr := client.RemoteAddr().String()
+	start := time.Now()
 
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	f := p.rule.Faults
-
-	if f.RefuseConnections {
-		// Simulate immediate refusal
+	if faults.RefuseConnections {
+		// Immediately close connection to simulate refusal
+		log.Printf("[DB] Refusing connection from %s (rule=%s -> %s)", clientAddr, p.rule.Listen, p.rule.Upstream)
+		_ = client.Close()
 		return
 	}
 
-	if f.LatencyMs > 0 {
-		time.Sleep(time.Duration(f.LatencyMs) * time.Millisecond)
+	// Optional initial latency per-connection
+	if faults.LatencyMs > 0 {
+		d := time.Duration(faults.LatencyMs) * time.Millisecond
+		time.Sleep(d)
+		log.Printf("[DB] Applied initial latency %s for %s", d, clientAddr)
 	}
 
-	server, err := net.DialTimeout("tcp", p.rule.Upstream, 5*time.Second)
+	// Randomly reset after accept
+	if faults.ResetProbability > 0 && rng.Float64() < faults.ResetProbability {
+		log.Printf("[DB] Resetting connection immediately after accept for %s (p=%.2f)", clientAddr, faults.ResetProbability)
+		_ = client.Close()
+		return
+	}
+
+	upstream, err := net.DialTimeout("tcp", p.rule.Upstream, 5*time.Second)
 	if err != nil {
-		log.Printf("[DB] dial upstream %s failed: %v", p.rule.Upstream, err)
+		log.Printf("[DB] Upstream dial error for %s: %v", p.rule.Upstream, err)
+		_ = client.Close()
 		return
 	}
-	defer server.Close()
+	log.Printf("[DB] %s connected -> upstream %s", clientAddr, p.rule.Upstream)
 
-	if rng.Float64() < f.ResetProbability {
-		// Close abruptly to simulate connection reset after accept
-		return
-	}
+	// Bi-directional piping with optional throttling/drops
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	var clientToServerBytes, serverToClientBytes uint64
-	done := make(chan struct{}, 2)
+	// Per-direction stats
+	upStats := &dirStats{}   // client -> upstream
+	downStats := &dirStats{} // upstream -> client
 
 	go func() {
-		atomic.AddUint64(&clientToServerBytes, uint64(copyWithFaults(server, client, f, rng)))
-		done <- struct{}{}
-	}()
-	go func() {
-		atomic.AddUint64(&serverToClientBytes, uint64(copyWithFaults(client, server, f, rng)))
-		done <- struct{}{}
+		defer wg.Done()
+		copyWithFaults(upstream, client, faults, "c->u", upStats)
 	}()
 
-	<-done
-	<-done
-	log.Printf("[DB] %s <-> %s closed. c->s=%dB s->c=%dB", client.RemoteAddr(), p.rule.Upstream, clientToServerBytes, serverToClientBytes)
+	go func() {
+		defer wg.Done()
+		copyWithFaults(client, upstream, faults, "u->c", downStats)
+	}()
+
+	wg.Wait()
+	_ = client.Close()
+	_ = upstream.Close()
+
+	dur := time.Since(start)
+	log.Printf("[DB] Conn %s closed after %s | c->u bytes=%d chunks=%d drops=%d slept(lat=%s,thr=%s) | u->c bytes=%d chunks=%d drops=%d slept(lat=%s,thr=%s)",
+		clientAddr, dur,
+		upStats.bytes, upStats.chunks, upStats.drops, upStats.latencySleep, upStats.throttleSleep,
+		downStats.bytes, downStats.chunks, downStats.drops, downStats.latencySleep, downStats.throttleSleep,
+	)
 }
 
-func copyWithFaults(dst io.Writer, src io.Reader, f config.TCPFaults, rng *rand.Rand) int {
-	buf := make([]byte, 32*1024)
-	total := 0
-	var lastSleep time.Time
+// copyWithFaults copies data from src to dst applying drop and bandwidth throttling.
+func copyWithFaults(dst net.Conn, src net.Conn, f config.TCPFaults, dir string, s *dirStats) {
+	// Simple chunked copy
+	bufSize := 32 * 1024
+	buf := make([]byte, bufSize)
+	var bwPerSec int64
+	if f.BandwidthKbps > 0 {
+		bwPerSec = int64(f.BandwidthKbps) * 1024 // bytes per second
+	}
+	var sentThisWindow int64
+	windowStart := time.Now()
 
 	for {
+		// Apply per-chunk latency if configured (approximate)
+		if f.LatencyMs > 0 {
+			d := time.Duration(f.LatencyMs) * time.Millisecond
+			time.Sleep(d)
+			s.latencySleep += d
+		}
+
 		n, readErr := src.Read(buf)
 		if n > 0 {
-			chunk := buf[:n]
-			// Random drop
+			s.chunks++
+			// Randomly drop this chunk
 			if f.DropProbability > 0 && rng.Float64() < f.DropProbability {
-				continue
-			}
-			// Bandwidth throttle
-			if f.BandwidthKbps > 0 {
-				perChunkDelay := time.Duration(float64(n) / (float64(f.BandwidthKbps) * 1024.0) * float64(time.Second))
-				if perChunkDelay > 0 {
-					// Avoid tight loop sleeps
-					if time.Since(lastSleep) < perChunkDelay {
-						time.Sleep(perChunkDelay - time.Since(lastSleep))
+				// drop silently
+				s.drops++
+				log.Printf("[DB] drop dir=%s size=%d", dir, n)
+			} else {
+				// Bandwidth throttling: ensure we don't exceed bwPerSec
+				if bwPerSec > 0 {
+					now := time.Now()
+					if now.Sub(windowStart) >= time.Second {
+						windowStart = now
+						sentThisWindow = 0
 					}
-					lastSleep = time.Now()
+					// If sending this chunk would exceed budget, sleep
+					if sentThisWindow+int64(n) > bwPerSec {
+						sleepDur := time.Second - now.Sub(windowStart)
+						if sleepDur > 0 {
+							time.Sleep(sleepDur)
+							s.throttleSleep += sleepDur
+							windowStart = time.Now()
+							sentThisWindow = 0
+						}
+					}
 				}
-			}
-			written, writeErr := dst.Write(chunk)
-			total += written
-			if writeErr != nil {
-				return total
+
+				wn, writeErr := dst.Write(buf[:n])
+				sentThisWindow += int64(wn)
+				s.writes++
+				s.bytes += int64(wn)
+				if writeErr != nil {
+					return
+				}
 			}
 		}
 		if readErr != nil {
 			if errors.Is(readErr, io.EOF) {
-				return total
+				return
 			}
-			return total
+			return
 		}
 	}
 }
