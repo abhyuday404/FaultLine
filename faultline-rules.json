@@ -6,7 +6,16 @@
       "type": "latency",
       "latencyMs": 5000
     },
-    "enabled": true,
+    "enabled": false,
     "category": "api"
+  },
+  {
+    "id": "feb544cf-ccc4-4dcb-a727-566baee435e7",
+    "target": "https://api.thecatapi.com/v1/images/search",
+    "failure": {
+      "type": "error",
+      "errorCode": 404
+    },
+    "enabled": false
   }
 ]

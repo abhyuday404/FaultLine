@@ -19,7 +19,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// CLI colors and styles
 var (
 	successColor = color.New(color.FgGreen, color.Bold)
 	errorColor   = color.New(color.FgRed, color.Bold)
@@ -29,19 +28,16 @@ var (
 	subtleColor  = color.New(color.FgHiBlack)
 )
 
-// RuleManager handles rule operations with shared state
 type RuleManager struct {
 	ruleState *state.RuleState
 }
 
-// NewRuleManager creates a new rule manager that shares state with the server
 func NewRuleManager(ruleState *state.RuleState) *RuleManager {
 	return &RuleManager{
 		ruleState: ruleState,
 	}
 }
 
-// getRuleByNumber returns a rule by its display number (1-based)
 func (rm *RuleManager) getRuleByNumber(number int) (*state.Rule, bool) {
 	rules := rm.ruleState.GetRules()
 	if number < 1 || number > len(rules) {
@@ -51,28 +47,23 @@ func (rm *RuleManager) getRuleByNumber(number int) (*state.Rule, bool) {
 	return &rule, true
 }
 
-// GetRuleState returns the rule state for server integration
 func (rm *RuleManager) GetRuleState() *state.RuleState {
 	return rm.ruleState
 }
 
-// CreateCLICommands creates all CLI commands for rule management
 func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 	var commands []*cobra.Command
 
-	// Rules command group
 	rulesCmd := &cobra.Command{
 		Use:   "rules",
 		Short: "Manage failure injection rules",
 		Long:  "Manage failure injection rules (add, list, enable/disable, export/import).",
 		Run: func(cmd *cobra.Command, args []string) {
-			// Show banner only when running the group command standalone
 			PrintBanner()
 			_ = cmd.Help()
 		},
 	}
 
-	// Add rule command
 	addCmd := &cobra.Command{
 		Use:   "add",
 		Short: "Add a new failure injection rule",
@@ -82,7 +73,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// List rules command
 	listCmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List all failure injection rules",
@@ -92,7 +82,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Delete rule command
 	deleteCmd := &cobra.Command{
 		Use:     "delete [rule-id]",
 		Short:   "Delete a failure injection rule",
@@ -107,7 +96,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Enable rule command
 	enableCmd := &cobra.Command{
 		Use:   "enable [rule-number]",
 		Short: "Enable a failure injection rule by number",
@@ -126,7 +114,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Disable rule command
 	disableCmd := &cobra.Command{
 		Use:   "disable [rule-number]",
 		Short: "Disable a failure injection rule by number",
@@ -145,7 +132,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Export rules command
 	exportCmd := &cobra.Command{
 		Use:   "export [filename]",
 		Short: "Export rules to a JSON file",
@@ -159,7 +145,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Import rules command
 	importCmd := &cobra.Command{
 		Use:   "import [filename]",
 		Short: "Import rules from a JSON file",
@@ -173,7 +158,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Status command
 	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show rules status and statistics",
@@ -182,11 +166,9 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Add subcommands to rules command
 	rulesCmd.AddCommand(addCmd, listCmd, deleteCmd, enableCmd, disableCmd, exportCmd, importCmd, statusCmd)
 	commands = append(commands, rulesCmd)
 
-	// Quick add command (shortcut)
 	quickAddCmd := &cobra.Command{
 		Use:   "add-rule",
 		Short: "Quick add a new failure rule (shortcut)",
@@ -196,19 +178,16 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 	}
 	commands = append(commands, quickAddCmd)
 
-	// OpenAPI Endpoints command group
 	endpointsCmd := &cobra.Command{
 		Use:   "endpoints",
 		Short: "Discover and manage API endpoints from OpenAPI specs",
 		Long:  "Discover API endpoints from OpenAPI/Swagger specs and create failure rules.",
 		Run: func(cmd *cobra.Command, args []string) {
-			// Show banner only for the standalone group invocation
 			PrintBanner()
 			_ = cmd.Help()
 		},
 	}
 
-	// List discovered endpoints
 	listEndpointsCmd := &cobra.Command{
 		Use:     "list [spec-file]",
 		Short:   "List endpoints from OpenAPI specifications",
@@ -223,7 +202,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Discover OpenAPI specs
 	discoverSpecsCmd := &cobra.Command{
 		Use:   "discover [directory]",
 		Short: "Discover OpenAPI specification files",
@@ -237,7 +215,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Create rules from endpoints
 	createRulesCmd := &cobra.Command{
 		Use:   "create-rules [spec-file]",
 		Short: "Create failure rules from discovered endpoints",
@@ -251,7 +228,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Analyze source code for endpoints
 	analyzeCodeCmd := &cobra.Command{
 		Use:   "analyze-code [directory]",
 		Short: "Analyze source code to find actual API endpoints being used",
@@ -265,7 +241,6 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Compare OpenAPI specs with actual code usage
 	compareCmd := &cobra.Command{
 		Use:   "compare [directory]",
 		Short: "Compare OpenAPI specifications with actual code usage",
@@ -279,14 +254,12 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 		},
 	}
 
-	// Add subcommands to endpoints command
 	endpointsCmd.AddCommand(listEndpointsCmd, discoverSpecsCmd, createRulesCmd, analyzeCodeCmd, compareCmd)
 	commands = append(commands, endpointsCmd)
 
 	return commands
 }
 
-// addRuleInteractive adds a rule with interactive prompts
 func addRuleInteractive(rm *RuleManager) {
 	headerColor.Println("\n🚀 Creating a new failure injection rule...")
 
@@ -295,14 +268,12 @@ func addRuleInteractive(rm *RuleManager) {
 		Enabled: true,
 	}
 
-	// Target URL prompt
 	targetPrompt := &survey.Input{
 		Message: "Target URL or pattern:",
 		Help:    "The URL pattern to match (e.g., https://api.example.com/users)",
 	}
 	survey.AskOne(targetPrompt, &rule.Target, survey.WithValidator(survey.Required))
 
-	// Failure type selection
 	failureType := ""
 	failurePrompt := &survey.Select{
 		Message: "Choose failure type:",
@@ -376,7 +347,6 @@ func addRuleInteractive(rm *RuleManager) {
 	}
 }
 
-// listRules displays all rules in a beautiful table
 func listRules(rm *RuleManager) {
 	rules := rm.ruleState.GetRules()
 
@@ -393,10 +363,7 @@ func listRules(rm *RuleManager) {
 	for i, rule := range rules {
 		ruleNum := fmt.Sprintf("%d", i+1)
 
-		target := rule.Target
-		if len(target) > 40 {
-			target = target[:37] + "..."
-		}
+		target := wrapURL(rule.Target, 88)
 
 		details := ""
 		switch rule.Failure.Type {
@@ -418,7 +385,6 @@ func listRules(rm *RuleManager) {
 
 	table.Render()
 
-	// Show tip for enabling/disabling
 	fmt.Println()
 	subtleColor.Println("💡 Tip: Use 'faultline rules enable <number>' or 'faultline rules disable <number>'")
 	subtleColor.Println("   Example: faultline rules enable 1")
@@ -466,6 +432,58 @@ func deleteRuleInteractive(rm *RuleManager) {
 	}
 
 	deleteRule(rm, rule.ID)
+}
+
+// wrapURL inserts newlines into long URLs so they display fully within the table.
+// It prefers to break at '/' boundaries and then hard-wraps any remaining long segments.
+func wrapURL(u string, width int) string {
+	if width <= 0 || len(u) <= width {
+		return u
+	}
+
+	parts := strings.Split(u, "/")
+	var lines []string
+	cur := ""
+	for i, p := range parts {
+		seg := p
+		if i != len(parts)-1 { // re-add slash except after the last part
+			seg += "/"
+		}
+		if len(cur)+len(seg) > width && cur != "" {
+			lines = append(lines, cur)
+			cur = seg
+		} else {
+			cur += seg
+		}
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+
+	// Ensure no single line exceeds width by hard-wrapping
+	for i, line := range lines {
+		if len(line) > width {
+			lines[i] = hardWrap(line, width)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func hardWrap(s string, width int) string {
+	if width <= 0 || len(s) <= width {
+		return s
+	}
+	var b strings.Builder
+	col := 0
+	for _, r := range s {
+		b.WriteRune(r)
+		col++
+		if col >= width {
+			b.WriteByte('\n')
+			col = 0
+		}
+	}
+	return b.String()
 }
 
 // deleteRule deletes a rule by ID
@@ -650,7 +668,6 @@ func listEndpoints(rm *RuleManager, specFile string) {
 	headerColor.Println("\n🔍 Discovering API Endpoints...")
 
 	var allEndpoints []openapi.Endpoint
-	var specSources []string
 
 	if specFile != "" {
 		// Parse specific spec file
@@ -666,7 +683,6 @@ func listEndpoints(rm *RuleManager, specFile string) {
 		}
 
 		allEndpoints = discovered.Endpoints
-		specSources = append(specSources, discovered.Source)
 
 		successColor.Printf("✅ Found %d endpoints in %s\n\n", len(discovered.Endpoints), filepath.Base(specFile))
 		if discovered.Info.Title != "" {
@@ -677,6 +693,7 @@ func listEndpoints(rm *RuleManager, specFile string) {
 			fmt.Println()
 		}
 	} else {
+		var specSources []string
 		// Discover all specs in current directory
 		specs, err := openapi.FindOpenAPISpecs(".")
 		if err != nil {
