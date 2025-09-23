@@ -9,7 +9,8 @@ const FAULTLINE_PROXY_URL = 'http://localhost:8080';
 const API_ENDPOINTS = {
   users: 'https://jsonplaceholder.typicode.com/users',
   posts: 'https://jsonplaceholder.typicode.com/posts',
-  quotes: 'https://zenquotes.io/api/random',
+  // Weather for Chennai, India (no API key required)
+  weather: 'https://api.open-meteo.com/v1/forecast?latitude=13.0827&longitude=80.2707&current_weather=true',
   facts: 'https://uselessfacts.jsph.pl/random.json?language=en',
   faultlineRules: 'http://localhost:8081/api/rules',
   catImage: 'https://api.thecatapi.com/v1/images/search'
@@ -27,7 +28,7 @@ function App() {
   // State for different data sections
   const [users, setUsers] = useState([])
   const [posts, setPosts] = useState([])
-  const [quote, setQuote] = useState(null)
+  const [weather, setWeather] = useState(null)
   const [fact, setFact] = useState(null)
   const [faultlineStatus, setFaultlineStatus] = useState(null)
   const [catImage, setCatImage] = useState(null)
@@ -120,7 +121,7 @@ function App() {
     // Direct fetch calls for code analyzer detection (these will be overridden by proper calls below)
     // fetch('https://jsonplaceholder.typicode.com/users')
     // fetch('https://jsonplaceholder.typicode.com/posts') 
-    // fetch('https://zenquotes.io/api/random')
+  // fetch('https://api.open-meteo.com/v1/forecast?latitude=13.0827&longitude=80.2707&current_weather=true')
     // fetch('https://uselessfacts.jsph.pl/random.json?language=en')
     // fetch('http://localhost:8081/api/rules')
     // fetch('https://api.thecatapi.com/v1/images/search')
@@ -129,8 +130,14 @@ function App() {
     fetchDataWithLatency('https://jsonplaceholder.typicode.com/users', setUsers, 'users')
     fetchDataWithLatency('https://jsonplaceholder.typicode.com/posts', 
       (data) => setPosts(data.slice(0, 5)), 'posts')
-    fetchDataWithLatency('https://zenquotes.io/api/random', 
-      (data) => setQuote(data[0]), 'quote')
+    fetchDataWithLatency(API_ENDPOINTS.weather,
+      (data) => setWeather({
+        temperature: data?.current_weather?.temperature,
+        windspeed: data?.current_weather?.windspeed,
+        winddirection: data?.current_weather?.winddirection,
+        weathercode: data?.current_weather?.weathercode,
+        timezone: data?.timezone
+      }), 'weather')
   fetchDataWithLatency(`https://uselessfacts.jsph.pl/random.json?language=en&_t=${Date.now()}`, setFact, 'fact', { cache: 'no-store' })
     fetchDataWithLatency('http://localhost:8081/api/rules', setFaultlineStatus, 'faultline')
     fetchDataWithLatency('https://api.thecatapi.com/v1/images/search', 
@@ -152,9 +159,15 @@ function App() {
         await fetchDataWithLatency('https://jsonplaceholder.typicode.com/posts', 
           (data) => setPosts(data.slice(0, 5)), 'posts')
         break
-      case 'quote':
-        await fetchDataWithLatency('https://zenquotes.io/api/random', 
-          (data) => setQuote(data[0]), 'quote')
+      case 'weather':
+        await fetchDataWithLatency(API_ENDPOINTS.weather,
+          (data) => setWeather({
+            temperature: data?.current_weather?.temperature,
+            windspeed: data?.current_weather?.windspeed,
+            winddirection: data?.current_weather?.winddirection,
+            weathercode: data?.current_weather?.weathercode,
+            timezone: data?.timezone
+          }), 'weather')
         break
       case 'fact':
         await fetchDataWithLatency(`https://uselessfacts.jsph.pl/random.json?language=en&_t=${Date.now()}`, setFact, 'fact', { cache: 'no-store' })
@@ -177,7 +190,7 @@ function App() {
   const demoFetchCalls = () => {
     fetch('https://jsonplaceholder.typicode.com/users')
     fetch('https://jsonplaceholder.typicode.com/posts') 
-    fetch('https://zenquotes.io/api/random')
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=13.0827&longitude=80.2707&current_weather=true')
     fetch('https://uselessfacts.jsph.pl/random.json?language=en')
     fetch('http://localhost:8081/api/rules')
     fetch('https://api.thecatapi.com/v1/images/search')
@@ -270,26 +283,34 @@ function App() {
               )}
             </div>
 
-            {/* Quote Card */}
+            {/* Weather Card */}
             <div className="data-card">
               <div className="card-header">
-                <h3> Daily Quote</h3>
-                <button onClick={() => refreshData('quote')} disabled={loading.quote}>
-                  {loading.quote ? "Refreshing..." : "Refresh"}
+                <h3> Weather — Chennai, IN</h3>
+                <button onClick={() => refreshData('weather')} disabled={loading.weather}>
+                  {loading.weather ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
-              {errors.quote ? (
-                <div className="error-message">{errors.quote}</div>
-              ) : quote ? (
+              {errors.weather ? (
+                <div className="error-message">{errors.weather}</div>
+              ) : weather ? (
                 <div className="card-content">
-                  <div className="quote-text">"{quote.q}"</div>
-                  <div className="quote-author">— {quote.a}</div>
-                  {latency.quote && (
-                    <div className="latency-info">Loaded in {latency.quote}ms</div>
-                  )}
+                  <div className="metric">
+                    Temp: {weather.temperature}°C
+                    {latency.weather && (
+                      <span className="latency"> • {latency.weather}ms</span>
+                    )}
+                  </div>
+                  <div className="data-preview">
+                    <div className="data-item">Wind: {weather.windspeed} km/h</div>
+                    <div className="data-item">Direction: {weather.winddirection}°</div>
+                    {weather.timezone && (
+                      <div className="data-item">Timezone: {weather.timezone}</div>
+                    )}
                 </div>
+                  </div>
               ) : (
-                <div className="loading-placeholder">Loading quote...</div>
+                <div className="loading-placeholder">Loading weather...</div>
               )}
             </div>
 
