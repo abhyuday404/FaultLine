@@ -45,16 +45,8 @@ func main() {
 	var rootCmd = &cobra.Command{
 		Use:   "faultline",
 		Short: "A tool for injecting failure scenarios into your dev environment.",
-		Long: color.New(color.FgMagenta, color.Bold).Sprint(`
-╔══════════════════════════════════════════════════════════════╗
-║                        🚨 FaultLine                          ║
-║                                                              ║
-║    Failure injection proxy for development environments     ║
-║                                                              ║
-║    Use 'faultline start' to run the proxy server           ║
-║    Use 'faultline rules' to manage injection rules         ║
-╚══════════════════════════════════════════════════════════════╝
-`),
+		Long:  "FaultLine – Failure injection proxy for development environments\n\n  • faultline start  — Run the proxy server and control API\n  • faultline rules  — Manage injection rules\n",
+		// No global banner; shown selectively on specific commands
 	}
 
 	// Initialize shared rule state for both CLI and server components
@@ -65,6 +57,7 @@ func main() {
 		Use:   "start",
 		Short: "Starts the FaultLine proxy and control API servers",
 		Run: func(cmd *cobra.Command, args []string) {
+			cli.PrintBanner()
 			successColor.Println("🚀 Starting FaultLine servers...")
 			runServers(apiPort, proxyPort, rm)
 		},

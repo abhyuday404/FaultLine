@@ -64,14 +64,12 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 	rulesCmd := &cobra.Command{
 		Use:   "rules",
 		Short: "Manage failure injection rules",
-		Long: headerColor.Sprint(`
-╔══════════════════════════════════════════════════════════════╗
-║                    🚨 FaultLine Rules Manager                ║
-║                                                              ║
-║  Manage failure injection rules for your development         ║
-║  environment with CLI commands.                              ║
-╚══════════════════════════════════════════════════════════════╝
-`),
+		Long:  "Manage failure injection rules (add, list, enable/disable, export/import).",
+		Run: func(cmd *cobra.Command, args []string) {
+			// Show banner only when running the group command standalone
+			PrintBanner()
+			_ = cmd.Help()
+		},
 	}
 
 	// Add rule command
@@ -202,14 +200,12 @@ func CreateCLICommands(rm *RuleManager) []*cobra.Command {
 	endpointsCmd := &cobra.Command{
 		Use:   "endpoints",
 		Short: "Discover and manage API endpoints from OpenAPI specs",
-		Long: headerColor.Sprint(`
-╔══════════════════════════════════════════════════════════════╗
-║                  🔍 FaultLine Endpoints Discovery            ║
-║                                                              ║
-║  Discover API endpoints from OpenAPI/Swagger specifications  ║
-║  and create failure rules automatically.                     ║
-╚══════════════════════════════════════════════════════════════╝
-`),
+		Long:  "Discover API endpoints from OpenAPI/Swagger specs and create failure rules.",
+		Run: func(cmd *cobra.Command, args []string) {
+			// Show banner only for the standalone group invocation
+			PrintBanner()
+			_ = cmd.Help()
+		},
 	}
 
 	// List discovered endpoints

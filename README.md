@@ -4,8 +4,6 @@ All-in-one failure testing for APIs and Databases.
 
 ## Commands
 
-- start-api: Run the HTTP reverse proxy for API fault injection (latency, errors, flaky).
-- start-db: Run the TCP proxy for DB/network fault injection (latency, drops, throttling, refuse).
 
 ## Quick start
 
@@ -17,6 +15,8 @@ All-in-one failure testing for APIs and Databases.
 3. Start DB proxies:
 
 	 faultline start-db -c faultline.yaml
+
+When you launch the CLI, you'll see a friendly ASCII banner. To hide it, set `FAULTLINE_NO_BANNER=1` in your environment.
 
 ## Example tcpRules
 
